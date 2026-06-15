@@ -862,19 +862,21 @@ async function loadData() {
 function renderPredictPage() {
     const todayMid = toMidnight(new Date());
 
-    // Today's matches from schedule
+    // Today's matches from schedule — add unique uid per match
     const todayMatches = _scheduleData.filter(m => {
         const d = parseSheetDate(m.date);
         return d && toMidnight(d).getTime() === todayMid.getTime();
-    });
+    }).map(m => ({
+        ...m,
+        uid: (m.id + '_' + m.team1 + '_' + m.team2).replace(/[^a-zA-Z0-9]/g, '_')
+    }));
 
     // My predictions (from sheet)
     const myPreds = _predictionsData.filter(p => p.playerId === playerId);
-    const myPredMap = {}; // matchId → { s1, s2 }
+    const myPredMap = {}; // uid → { s1, s2 }
     myPreds.forEach(p => { myPredMap[p.matchId] = { s1: p.s1, s2: p.s2 }; });
 
     // Also check localStorage for predictions submitted this session
-    // (sheet may not have updated yet)
     const localPreds = getLocalPredictions();
     Object.assign(myPredMap, localPreds);
 
@@ -888,13 +890,13 @@ function renderPredictPage() {
     } else {
         openHdr.style.display = 'flex';
         openContainer.innerHTML = todayMatches.map(m => {
-            const pred = myPredMap[m.id];
+            const pred = myPredMap[m.uid];
             const kicked = isKickedOff(m.time);
             const isPredicted = !!pred;
             const isLocked = kicked && !isPredicted;
 
             return `
-            <div class="match-card ${isPredicted ? 'predicted' : ''} ${isLocked ? 'locked-match' : ''}" id="mc-${m.id}">
+            <div class="match-card ${isPredicted ? 'predicted' : ''} ${isLocked ? 'locked-match' : ''}" id="mc-${m.uid}">
                 <div class="match-meta">
                     <span class="match-grp">Group ${m.grp}</span>
                     <span class="match-time ${kicked && !isPredicted ? 'live' : ''}">${kicked ? (isPredicted ? 'Locked ✓' : 'Started') : m.time}</span>
@@ -907,13 +909,13 @@ function renderPredictPage() {
                     <div>
                         <div class="score-row">
                             <input class="score-input" type="number" min="0" max="20"
-                                id="s1-${m.id}" placeholder="0"
+                                id="s1-${m.uid}" placeholder="0"
                                 value="${isPredicted ? pred.s1 : ''}"
                                 ${isPredicted || kicked ? 'disabled' : ''}
                                 oninput="clamp(this)">
                             <span class="score-dash">–</span>
                             <input class="score-input" type="number" min="0" max="20"
-                                id="s2-${m.id}" placeholder="0"
+                                id="s2-${m.uid}" placeholder="0"
                                 value="${isPredicted ? pred.s2 : ''}"
                                 ${isPredicted || kicked ? 'disabled' : ''}
                                 oninput="clamp(this)">
@@ -932,7 +934,7 @@ function renderPredictPage() {
                            </div>`
                         : kicked
                         ? `<div class="predicted-row"><span style="color:var(--text-muted);font-size:12px;font-weight:600">⏰ Deadline passed</span></div>`
-                        : `<button class="submit-btn" onclick="submitPrediction('${m.id}', '${m.date}')">Lock in prediction</button>`
+                        : `<button class="submit-btn" onclick="submitPrediction('${m.uid}', '${m.date}')">Lock in prediction</button>`
                     }
                 </div>
             </div>`;
@@ -1048,30 +1050,34 @@ function renderStandings() {
 // ══════════════════════════════════════════════
 //  SUBMIT PREDICTION
 // ══════════════════════════════════════════════
-async function submitPrediction(matchId, matchDate) {
-    const s1 = parseInt(document.getElementById('s1-' + matchId).value);
-    const s2 = parseInt(document.getElementById('s2-' + matchId).value);
+async function submitPrediction(uid, matchDate) {
+    const s1Input = document.getElementById('s1-' + uid);
+    const s2Input = document.getElementById('s2-' + uid);
 
-    if (isNaN(s1) || isNaN(s2)) {
+    // Trim and parse — handles empty string, whitespace, decimals
+    const s1Raw = s1Input ? s1Input.value.trim() : '';
+    const s2Raw = s2Input ? s2Input.value.trim() : '';
+    const s1 = s1Raw === '' ? NaN : parseInt(s1Raw, 10);
+    const s2 = s2Raw === '' ? NaN : parseInt(s2Raw, 10);
+
+    if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
         showToast('Enter a score for both teams', true);
         return;
     }
 
     // Disable button immediately
-    const btn = document.querySelector(`#mc-${matchId} .submit-btn`);
+    const btn = document.querySelector(`#mc-${uid} .submit-btn`);
     if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
 
     try {
         if (GAS_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
-            // Dev mode — save locally only
-            saveLocalPrediction(matchId, { s1, s2 });
+            saveLocalPrediction(uid, { s1, s2 });
             recordPredictionToday();
             renderPredictPage();
             showToast('🎯 Prediction locked in! (dev mode)');
             return;
         }
 
-        // Send to GAS with token + session PIN for server-side validation
         const res = await fetch(GAS_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -1081,7 +1087,7 @@ async function submitPrediction(matchId, matchDate) {
                 playerId,
                 pin:        _sessionPin,
                 playerName: playerData.name,
-                matchId,
+                matchId:    uid,
                 date:       matchDate,
                 s1,
                 s2,
@@ -1092,18 +1098,15 @@ async function submitPrediction(matchId, matchDate) {
         const result = await res.json();
 
         if (result.status === 'ok') {
-            // Save locally so UI is instant on re-render
-            saveLocalPrediction(matchId, { s1, s2 });
+            saveLocalPrediction(uid, { s1, s2 });
             recordPredictionToday();
             renderPredictPage();
             showToast('🎯 Prediction locked in!');
-        } else if (result.status === 'error' && result.message === 'Already submitted for this match') {
-            // Server says duplicate — mark locally as submitted
-            saveLocalPrediction(matchId, { s1, s2 });
+        } else if (result.message === 'Already submitted for this match') {
+            saveLocalPrediction(uid, { s1, s2 });
             renderPredictPage();
             showToast('Already submitted for this match', true);
         } else {
-            // Re-enable button so they can retry
             if (btn) { btn.disabled = false; btn.textContent = 'Lock in prediction'; }
             showToast(result.message || 'Could not save — try again', true);
         }

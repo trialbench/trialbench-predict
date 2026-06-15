@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Trial Bench Cup · Prediction Admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+:root {
+    --bg: #05080f;
+    --border: rgba(255,255,255,0.05);
+    --accent: #22C55E;
+    --accent-dim: rgba(34,197,94,0.12);
+    --gold: #FFD700;
+    --danger: #EF4444;
+    --warning: #F59E0B;
+    --text-muted: #6B7280;
+    --text-secondary: #9CA3AF;
+    --glass: rgba(17,24,39,0.6);
+}
+
+html { background: var(--bg); }
+body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg); color: #fff;
+    min-height: 100vh; padding-bottom: 60px;
+    -webkit-font-smoothing: antialiased;
+}
+
+.header {
+    background: linear-gradient(180deg, rgba(255,215,0,0.05) 0%, transparent 100%);
+    border-bottom: 1px solid rgba(255,215,0,0.1);
+    padding: 28px 20px 20px;
+    max-width: 600px; margin: 0 auto;
+}
+.header h1 { font-size: 22px; font-weight: 900; color: var(--gold); letter-spacing: -0.5px; }
+.header p  { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+
+.body { max-width: 600px; margin: 0 auto; padding: 0 20px; }
+
+/* ── SECTION ── */
+.section-hdr {
+    padding: 24px 0 12px;
+    display: flex; align-items: center; gap: 10px;
+}
+.section-hdr h2 { font-size: 14px; font-weight: 800; white-space: nowrap; }
+.section-hdr .line { flex:1; height:1px; background: linear-gradient(90deg, var(--border), transparent); }
+
+/* ── STATS ROW ── */
+.stats-row {
+    display: grid; grid-template-columns: repeat(3,1fr); gap: 10px;
+    margin-bottom: 4px;
+}
+.stat-box {
+    background: var(--glass); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 12px; text-align: center;
+}
+.stat-val { font-size: 28px; font-weight: 900; }
+.stat-lbl { font-size: 10px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; margin-top: 3px; }
+
+/* ── SETUP NOTICE ── */
+.setup-notice {
+    background: rgba(245,158,11,0.06);
+    border: 1px solid rgba(245,158,11,0.18);
+    border-radius: 14px; padding: 16px 18px; margin-bottom: 4px;
+}
+.setup-notice-title {
+    font-size: 12px; font-weight: 800; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--warning); margin-bottom: 10px;
+}
+.setup-step {
+    font-size: 13px; color: var(--text-secondary); padding: 5px 0;
+    display: flex; gap: 10px; align-items: flex-start;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.setup-step:last-child { border-bottom: none; }
+.setup-step .num {
+    font-size: 11px; font-weight: 800; color: var(--warning);
+    background: rgba(245,158,11,0.1); border-radius: 50%;
+    width: 20px; height: 20px; display: flex; align-items: center;
+    justify-content: center; flex-shrink: 0; margin-top: 1px;
+}
+.setup-step code {
+    background: rgba(255,255,255,0.07); padding: 1px 6px;
+    border-radius: 4px; font-size: 12px; color: #fff;
+    font-family: monospace;
+}
+
+/* ── PLAYER ROWS ── */
+.player-row {
+    background: var(--glass); border: 1px solid var(--border);
+    border-radius: 14px; padding: 14px 16px;
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 10px; transition: border-color 0.15s;
+}
+.player-row:hover { border-color: rgba(255,255,255,0.1); }
+.player-flag { font-size: 30px; flex-shrink: 0; }
+.player-info { flex: 1; min-width: 0; }
+.player-name { font-size: 14px; font-weight: 700; }
+.player-url  {
+    font-size: 11px; color: var(--accent); font-weight: 600;
+    margin-top: 3px; font-family: monospace;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.player-pin {
+    font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 2px;
+}
+.player-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+.btn {
+    font-size: 11px; font-weight: 800;
+    padding: 7px 13px; border-radius: 99px;
+    border: none; cursor: pointer; transition: all 0.15s;
+    font-family: 'Inter', sans-serif; white-space: nowrap;
+}
+.btn-copy {
+    background: var(--accent-dim);
+    border: 1px solid rgba(34,197,94,0.25);
+    color: var(--accent);
+}
+.btn-copy:hover { background: rgba(34,197,94,0.2); }
+.btn-copy.done  { background: rgba(34,197,94,0.25); color: #fff; }
+
+.btn-wa {
+    background: rgba(37,211,102,0.1);
+    border: 1px solid rgba(37,211,102,0.25);
+    color: #25D366;
+}
+.btn-wa:hover { background: rgba(37,211,102,0.18); }
+
+/* ── PREDICTIONS TABLE ── */
+.pred-table {
+    width: 100%; border-collapse: collapse;
+    font-size: 12px;
+}
+.pred-table th {
+    text-align: left; padding: 8px 10px;
+    font-size: 10px; font-weight: 800; letter-spacing: 1.5px;
+    text-transform: uppercase; color: var(--text-muted);
+    border-bottom: 1px solid var(--border);
+}
+.pred-table td {
+    padding: 10px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+    color: var(--text-secondary); font-weight: 600;
+}
+.pred-table tr:last-child td { border-bottom: none; }
+.pred-table tr:hover td { background: rgba(255,255,255,0.02); }
+.pred-pts {
+    font-weight: 800; color: var(--accent);
+    background: var(--accent-dim); border: 1px solid rgba(34,197,94,0.15);
+    padding: 2px 8px; border-radius: 99px; font-size: 11px;
+}
+.pred-pts.zero { color: var(--text-muted); background: rgba(255,255,255,0.04); border-color: var(--border); }
+
+.table-wrap {
+    background: var(--glass); border: 1px solid var(--border);
+    border-radius: 14px; overflow: hidden; overflow-x: auto;
+}
+
+/* ── TOAST ── */
+.toast {
+    position: fixed; bottom: 28px; left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    background: rgba(17,24,39,0.97);
+    border: 1px solid rgba(34,197,94,0.3);
+    color: var(--accent); font-size: 13px; font-weight: 700;
+    padding: 10px 20px; border-radius: 99px;
+    opacity: 0; transition: all 0.25s; pointer-events: none;
+    white-space: nowrap; z-index: 999;
+}
+.toast.show { opacity:1; transform: translateX(-50%) translateY(0); }
+
+/* ── LOADING ── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinner {
+    width: 22px; height: 22px;
+    border: 2px solid rgba(34,197,94,0.15);
+    border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.7s linear infinite;
+    display: inline-block; vertical-align: middle; margin-right: 8px;
+}
+.loading-row { padding: 24px; text-align: center; color: var(--text-muted); font-size: 13px; }
+
+/* ── WHATSAPP TEMPLATE ── */
+.wa-template {
+    background: rgba(37,211,102,0.04);
+    border: 1px solid rgba(37,211,102,0.15);
+    border-radius: 12px; padding: 14px 16px;
+    font-size: 13px; color: var(--text-secondary);
+    line-height: 1.7; font-family: monospace;
+    white-space: pre-wrap; word-break: break-all;
+    margin-bottom: 10px;
+}
+.wa-copy-btn {
+    width: 100%; padding: 11px;
+    background: rgba(37,211,102,0.1);
+    border: 1px solid rgba(37,211,102,0.25);
+    color: #25D366; font-family: 'Inter', sans-serif;
+    font-size: 13px; font-weight: 800;
+    border-radius: 10px; cursor: pointer; transition: all 0.15s;
+}
+.wa-copy-btn:hover { background: rgba(37,211,102,0.18); }
+</style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🔑 Prediction Admin</h1>
+    <p>Manage player links, PINs, and view all predictions</p>
+</div>
+
+<div class="body">
+
+    <!-- SETUP CHECKLIST -->
+    <div class="section-hdr">
+        <h2>⚙️ One-Time Setup</h2>
+        <div class="line"></div>
+    </div>
+    <div class="setup-notice">
+        <div class="setup-notice-title">Complete these steps once</div>
+        <div class="setup-step">
+            <div class="num">1</div>
+            <div>Add a new tab to your Google Sheet named exactly <code>Predictions</code> with columns: <code>PlayerID | PlayerName | MatchID | Date | Score1 | Score2 | SubmittedAt</code></div>
+        </div>
+        <div class="setup-step">
+            <div class="num">2</div>
+            <div>Open <strong>Extensions → Apps Script</strong> in your sheet and paste the code from <code>predict-gas.js</code>. Click Deploy → New deployment → Web app → Anyone. Copy the URL.</div>
+        </div>
+        <div class="setup-step">
+            <div class="num">3</div>
+            <div>Paste that URL into <code>predict.html</code> at the <code>GAS_URL</code> variable, and fill in the <code>PLAYERS</code> array with all player IDs, names, flags, and PINs.</div>
+        </div>
+        <div class="setup-step">
+            <div class="num">4</div>
+            <div>Send each player their unique WhatsApp message from the panel below. They bookmark it once — done.</div>
+        </div>
+    </div>
+
+    <!-- OVERVIEW STATS -->
+    <div class="section-hdr">
+        <h2>Today's Overview</h2>
+        <div class="line"></div>
+    </div>
+    <div class="stats-row" id="statsRow">
+        <div class="stat-box"><div class="stat-val" id="statTotal">—</div><div class="stat-lbl">Players</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:var(--accent)" id="statPredicted">—</div><div class="stat-lbl">Predicted</div></div>
+        <div class="stat-box"><div class="stat-val" style="color:var(--warning)" id="statPending">—</div><div class="stat-lbl">Pending</div></div>
+    </div>
+
+    <!-- PLAYER LINKS -->
+    <div class="section-hdr">
+        <h2>Player Links</h2>
+        <div class="line"></div>
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">
+        Send each player their link + PIN once via WhatsApp. They bookmark it — no login ever again.
+    </p>
+    <div id="playerLinks">
+        <div class="loading-row"><span class="spinner"></span>Loading player data…</div>
+    </div>
+
+    <!-- WHATSAPP BULK SEND -->
+    <div class="section-hdr">
+        <h2>WhatsApp Template</h2>
+        <div class="line"></div>
+    </div>
+    <p style="font-size:12px;color:var(--text-muted);margin-bottom:12px">
+        Select a player above then use their individual WhatsApp button, or copy this template to customise.
+    </p>
+    <div class="wa-template" id="waTemplate">Select a player to preview their message</div>
+    <button class="wa-copy-btn" onclick="copyWaTemplate()">📋 Copy WhatsApp Message</button>
+
+    <!-- ALL PREDICTIONS -->
+    <div class="section-hdr" style="margin-top:8px">
+        <h2>All Predictions</h2>
+        <div class="line"></div>
+    </div>
+    <div class="table-wrap">
+        <table class="pred-table">
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th>Match</th>
+                    <th>Pick</th>
+                    <th>Result</th>
+                    <th>Pts</th>
+                </tr>
+            </thead>
+            <tbody id="predTableBody">
+                <tr><td colspan="5" class="loading-row"><span class="spinner"></span>Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════════
+//  CONFIG — keep in sync with predict.html
+// ══════════════════════════════════════════════
+const SHEET_ID = '1yOG8gXxc6Ydbbi1lsnDwjWSepFM8eJ33KhkbKzTetYU';
+
+// Same PLAYERS array as predict.html — NO PINs here, those live in predict-gas.js only
+const PLAYERS = [
+    { id: 'assim',            name: 'Assim',            flag: '🇲🇽', country: 'Mexico'              },
+    { id: 'sujith',           name: 'Sujith',           flag: '🇿🇦', country: 'South Africa'        },
+    { id: 'vishnu',           name: 'Vishnu',           flag: '🇰🇷', country: 'Korea Republic'      },
+    { id: 'sreehari',         name: 'Sreehari',         flag: '🇨🇿', country: 'Czechia'             },
+    { id: 'venkateswaran',    name: 'Venkateswaran',    flag: '🇶🇦', country: 'Qatar'               },
+    { id: 'jaison',           name: 'Jaison',           flag: '🇨🇭', country: 'Switzerland'         },
+    { id: 'akhil',            name: 'Akhil',            flag: '🇧🇷', country: 'Brazil'              },
+    { id: 'varsha',           name: 'Varsha',           flag: '🇲🇦', country: 'Morocco'             },
+    { id: 'fathima',          name: 'Fathima',          flag: '🏴󠁧󠁢󠁳󠁣󠁴󠁿', country: 'Scotland'            },
+    { id: 'sunil',            name: 'Sunil',            flag: '🇺🇸', country: 'USA'                 },
+    { id: 'vikas',            name: 'Vikas',            flag: '🇵🇾', country: 'Paraguay'            },
+    { id: 'biju',             name: 'Biju',             flag: '🇦🇺', country: 'Australia'           },
+    { id: 'ajaz',             name: 'Ajaz',             flag: '🇹🇷', country: 'Türkiye'             },
+    { id: 'rahul',            name: 'Rahul',            flag: '🇨🇼', country: 'Curaçao'             },
+    { id: 'vimal',            name: 'Vimal',            flag: '🇨🇮', country: "Côte d'Ivoire"       },
+    { id: 'anjana',           name: 'Anjana',           flag: '🇪🇨', country: 'Ecuador'             },
+    { id: 'kevin',            name: 'Kevin',            flag: '🇳🇱', country: 'Netherlands'         },
+    { id: 'vishnus',          name: 'Vishnu S',         flag: '🇯🇵', country: 'Japan'               },
+    { id: 'naveen',           name: 'Naveen',           flag: '🇹🇳', country: 'Tunisia'             },
+    { id: 'sukhil',           name: 'Sukhil',           flag: '🇧🇪', country: 'Belgium'             },
+    { id: 'vipin',            name: 'Vipin',            flag: '🇪🇬', country: 'Egypt'               },
+    { id: 'jennifer',         name: 'Jennifer',         flag: '🇮🇷', country: 'IR Iran'             },
+    { id: 'avinash',          name: 'Avinash',          flag: '🇳🇿', country: 'New Zealand'         },
+    { id: 'joel',             name: 'Joel',             flag: '🇪🇸', country: 'Spain'               },
+    { id: 'rishi',            name: 'Rishi',            flag: '🇨🇻', country: 'Cabo Verde'          },
+    { id: 'hemanth',          name: 'Hemanth',          flag: '🇸🇦', country: 'Saudi Arabia'        },
+    { id: 'renjini',          name: 'Renjini',          flag: '🇺🇾', country: 'Uruguay'             },
+    { id: 'deepthi',          name: 'Deepthi',          flag: '🇸🇳', country: 'Senegal'             },
+    { id: 'jackson',          name: 'Jackson',          flag: '🇮🇶', country: 'Iraq'               },
+    { id: 'krishnamurali',    name: 'Krishna Murali',   flag: '🇳🇴', country: 'Norway'              },
+    { id: 'ananthakrishnan',  name: 'Anantha Krishnan', flag: '🇦🇷', country: 'Argentina'           },
+    { id: 'jose',             name: 'Jose',             flag: '🇩🇿', country: 'Algeria'             },
+    { id: 'aneesha',          name: 'Aneesha',          flag: '🇦🇹', country: 'Austria'             },
+    { id: 'sivaraj',          name: 'Sivaraj',          flag: '🇯🇴', country: 'Jordan'              },
+    { id: 'vidya',            name: 'Vidya',            flag: '🇵🇹', country: 'Portugal'            },
+    { id: 'sujiths',          name: 'Sujith S',         flag: '🇨🇩', country: 'Congo DR'            },
+    { id: 'zaid',             name: 'Zaid',             flag: '🇺🇿', country: 'Uzbekistan'          },
+    { id: 'akhila',           name: 'Akhila',           flag: '🇨🇴', country: 'Colombia'            },
+    { id: 'christina',        name: 'Christina',        flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', country: 'England'             },
+    { id: 'vaishak',          name: 'Vaishak',          flag: '🇭🇷', country: 'Croatia'             },
+    { id: 'tintu',            name: 'Tintu',            flag: '🇬🇭', country: 'Ghana'               },
+    { id: 'ajmal',            name: 'Ajmal',            flag: '🇭🇹', country: 'Haiti'               },
+    { id: 'sobha',            name: 'Sobha',            flag: '🇸🇪', country: 'Sweden'              },
+    { id: 'athulya',          name: 'Athulya',          flag: '🇫🇷', country: 'France'              },
+    { id: 'divya',            name: 'Divya',            flag: '🇵🇦', country: 'Panama'              },
+];
+
+// PINs are kept privately — open predict-gas.js to see them
+// They are never exposed in this admin HTML either
+const PLAYER_PINS_ADMIN = {
+    'assim':'4821','sujith':'7346','vishnu':'2958','sreehari':'6103',
+    'venkateswaran':'3574','jaison':'8829','akhil':'5012','varsha':'1647',
+    'fathima':'9231','sunil':'4408','vikas':'7763','biju':'2190',
+    'ajaz':'5534','rahul':'8876','vimal':'3315','anjana':'6659',
+    'kevin':'1092','vishnus':'4437','naveen':'7781','sukhil':'2224',
+    'vipin':'5568','jennifer':'8903','avinash':'3346','joel':'6680',
+    'rishi':'1123','hemanth':'4467','renjini':'7801','deepthi':'2245',
+    'jackson':'5589','krishnamurali':'8924','ananthakrishnan':'3367',
+    'jose':'6701','aneesha':'1144','sivaraj':'4488','vidya':'7822',
+    'sujiths':'2266','zaid':'5510','akhila':'8845','christina':'3389',
+    'vaishak':'6623','tintu':'1056','divya':'4390',
+    'ajmal':'3712','sobha':'6048','athulya':'9265',
+};
+
+// Base URL where predict.html is hosted
+const BASE_URL = window.location.href.replace('predict-admin.html', 'predict.html');
+
+// ══════════════════════════════════════════════
+//  FETCH
+// ══════════════════════════════════════════════
+function parseCSV(text) {
+    return text.split(/\r?\n/).map(line => {
+        const cells = []; let cur = '', inQ = false;
+        for (let i = 0; i < line.length; i++) {
+            const ch = line[i];
+            if (ch === '"') { if (inQ && line[i+1]==='"') { cur+='"'; i++; } else inQ=!inQ; }
+            else if (ch === ',' && !inQ) { cells.push(cur.trim()); cur=''; }
+            else cur += ch;
+        }
+        cells.push(cur.trim());
+        return cells;
+    }).filter(r => r.some(c => c !== ''));
+}
+
+async function fetchSheet(name) {
+    const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:csv&sheet=${encodeURIComponent(name)}`;
+    const res = await fetch(url);
+    const text = await res.text();
+    if (text.trim().startsWith('<')) throw new Error(`${name} not found`);
+    return parseCSV(text);
+}
+
+// ══════════════════════════════════════════════
+//  RENDER
+// ══════════════════════════════════════════════
+let _predictions = [];
+let _matches = [];
+let _selectedPlayer = null;
+
+async function init() {
+    try {
+        const [rawMatches, rawPredictions] = await Promise.all([
+            fetchSheet('Matches'),
+            fetchSheet('Predictions').catch(() => []),
+        ]);
+
+        _matches = rawMatches
+            .filter(r => r[0] && /^\d+$/.test(r[0].trim()) && r[5] !== '' && r[6] !== '')
+            .map(r => ({ id: r[0], date: r[1], grp: r[2], team1: r[3], team2: r[4], s1: parseInt(r[5]), s2: parseInt(r[6]) }));
+
+        _predictions = rawPredictions
+            .filter(r => r[0] && r[2])
+            .map(r => ({ playerId: r[0], playerName: r[1], matchId: r[2], date: r[3], s1: parseInt(r[4]), s2: parseInt(r[5]) }));
+
+        renderStats();
+        renderPlayerLinks();
+        renderPredTable();
+
+    } catch(e) {
+        document.getElementById('playerLinks').innerHTML =
+            `<div style="color:var(--danger);font-size:13px;padding:16px 0">⚠️ ${e.message}</div>`;
+        console.error(e);
+    }
+}
+
+function getTodayStr() {
+    return new Date().toISOString().slice(0,10);
+}
+
+function renderStats() {
+    const today = getTodayStr();
+    const predictedToday = new Set(
+        _predictions.filter(p => p.date === today).map(p => p.playerId)
+    );
+    document.getElementById('statTotal').textContent = PLAYERS.length || '—';
+    document.getElementById('statPredicted').textContent = predictedToday.size;
+    document.getElementById('statPending').textContent = Math.max(0, PLAYERS.length - predictedToday.size);
+}
+
+function renderPlayerLinks() {
+    const container = document.getElementById('playerLinks');
+
+    if (PLAYERS.length === 0) {
+        container.innerHTML = `
+            <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.15);
+                border-radius:12px;padding:16px;font-size:13px;color:var(--text-muted)">
+                ⚠️ No players configured. Fill in the <code style="background:rgba(255,255,255,0.08);
+                padding:1px 5px;border-radius:4px">PLAYERS</code> array in this file and in <code
+                style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:4px">predict.html</code>.
+            </div>`;
+        return;
+    }
+
+    const today = getTodayStr();
+    const predictedToday = new Set(
+        _predictions.filter(p => p.date === today).map(p => p.playerId)
+    );
+
+    container.innerHTML = PLAYERS.map(p => {
+        const link = `${BASE_URL}?player=${p.id}`;
+        const pin  = PLAYER_PINS_ADMIN[p.id] || '????';
+        const hasPredicted = predictedToday.has(p.id);
+        return `
+        <div class="player-row" onclick="selectPlayer('${p.id}')">
+            <div class="player-flag">${p.flag}</div>
+            <div class="player-info">
+                <div class="player-name">
+                    ${p.name}
+                    ${hasPredicted ? '<span style="font-size:10px;color:var(--accent);font-weight:700;margin-left:6px">✅ predicted today</span>' : ''}
+                </div>
+                <div class="player-url">${link}</div>
+                <div class="player-pin">PIN: ${pin}</div>
+            </div>
+            <div class="player-actions">
+                <button class="btn btn-copy" id="copy-${p.id}" onclick="copyLink(event,'${p.id}')">Copy</button>
+                <button class="btn btn-wa" onclick="openWhatsApp(event,'${p.id}')">WhatsApp</button>
+            </div>
+        </div>`;
+    }).join('');
+}
+
+function renderPredTable() {
+    const tbody = document.getElementById('predTableBody');
+
+    if (_predictions.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">No predictions yet</td></tr>`;
+        return;
+    }
+
+    // Build match result lookup
+    const matchMap = {};
+    _matches.forEach(m => { matchMap[m.id] = m; });
+
+    // Calculate points per prediction
+    const rows = _predictions.map(p => {
+        const match = matchMap[p.matchId];
+        let pts = null, resultLabel = '—', resultColor = 'var(--text-muted)';
+
+        if (match && !isNaN(p.s1) && !isNaN(p.s2)) {
+            const exact  = p.s1 === match.s1 && p.s2 === match.s2;
+            const result = Math.sign(p.s1 - p.s2) === Math.sign(match.s1 - match.s2);
+            if (exact)        { pts = 3; resultLabel = '🎯 Exact';   resultColor = 'var(--accent)'; }
+            else if (result)  { pts = 1; resultLabel = '✅ Result';  resultColor = 'var(--warning)'; }
+            else              { pts = 0; resultLabel = '❌ Wrong';   resultColor = 'var(--danger)'; }
+        } else if (!match) {
+            resultLabel = '⏳ Pending';
+        }
+
+        const player = PLAYERS.find(pl => pl.id === p.playerId);
+        const flag   = player ? player.flag : '🏴';
+        const matchLabel = match ? `${match.team1} v ${match.team2}` : `Match #${p.matchId}`;
+
+        return `
+        <tr>
+            <td><span style="margin-right:5px">${flag}</span>${p.playerName}</td>
+            <td>${matchLabel}</td>
+            <td style="color:#fff;font-weight:800">${isNaN(p.s1) ? '—' : `${p.s1}–${p.s2}`}</td>
+            <td style="color:${resultColor};font-weight:700">${resultLabel}</td>
+            <td>${pts !== null
+                ? `<span class="pred-pts ${pts === 0 ? 'zero' : ''}">${pts > 0 ? '+' + pts : '0'} pt${pts !== 1 ? 's' : ''}</span>`
+                : '<span style="color:var(--text-muted)">—</span>'
+            }</td>
+        </tr>`;
+    });
+
+    tbody.innerHTML = rows.join('');
+}
+
+// ══════════════════════════════════════════════
+//  ACTIONS
+// ══════════════════════════════════════════════
+function selectPlayer(playerId) {
+    _selectedPlayer = PLAYERS.find(p => p.id === playerId);
+    if (_selectedPlayer) updateWaTemplate(_selectedPlayer);
+}
+
+function updateWaTemplate(player) {
+    const link = `${BASE_URL}?player=${player.id}`;
+    const pin  = PLAYER_PINS_ADMIN[player.id] || '????';
+    const msg = `⚽ *Trial Bench Cup — Predictions*\n\nHey ${player.name.split(' ')[0]}! 👋\n\nHere's your personal prediction link:\n${link}\n\n🔐 Your PIN: *${pin}*\n\nBookmark the link — you'll only need to enter your PIN once. Predict before each match kicks off to earn bonus points!\n\n🏆 Good luck!`;
+    document.getElementById('waTemplate').textContent = msg;
+}
+
+function copyLink(e, playerId) {
+    e.stopPropagation();
+    const player = PLAYERS.find(p => p.id === playerId);
+    if (!player) return;
+    const link = `${BASE_URL}?player=${player.id}`;
+    navigator.clipboard.writeText(link).then(() => {
+        const btn = document.getElementById('copy-' + playerId);
+        btn.textContent = '✅ Copied';
+        btn.classList.add('done');
+        setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('done'); }, 2000);
+    }).catch(() => showToast('Copy failed'));
+}
+
+function openWhatsApp(e, playerId) {
+    e.stopPropagation();
+    const player = PLAYERS.find(p => p.id === playerId);
+    if (!player) return;
+    selectPlayer(playerId);
+    const link = `${BASE_URL}?player=${player.id}`;
+    const pin  = PLAYER_PINS_ADMIN[player.id] || '????';
+    const msg = `⚽ Trial Bench Cup — Predictions\n\nHey ${player.name.split(' ')[0]}! 👋\n\nHere's your personal prediction link:\n${link}\n\nYour PIN: ${pin}\n\nBookmark the link — enter your PIN once, then it's yours forever. Predict before kickoff every day!\n\n🏆 Good luck!`;
+    window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+function copyWaTemplate() {
+    const text = document.getElementById('waTemplate').textContent;
+    if (text.startsWith('Select a player')) {
+        showToast('Select a player first');
+        return;
+    }
+    navigator.clipboard.writeText(text).then(() => showToast('✅ Message copied!')).catch(() => showToast('Copy failed'));
+}
+
+function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg; t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+// ══════════════════════════════════════════════
+//  BOOT
+// ══════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>

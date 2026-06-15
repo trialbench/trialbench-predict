@@ -572,9 +572,11 @@ let pinVerified  = false;
 function checkPinAlreadySaved() {
     const saved = localStorage.getItem(PIN_KEY);
     if (saved === 'verified') {
-        pinVerified = true;
-        document.getElementById('pinOverlay').classList.add('hidden');
-        onAuthenticated();
+        // Previously verified — but we still need the PIN in memory for this session
+        // Show a lighter "welcome back" PIN prompt
+        document.getElementById('pinSub').textContent = 'Welcome back! Enter your PIN to continue.';
+        // PIN screen stays visible — player enters PIN, verifyPin() captures _sessionPin
+        // No change needed — the normal PIN flow handles it
     }
 }
 
@@ -634,12 +636,13 @@ async function verifyPin() {
         const result   = await checkRes.json();
 
         if (result.valid) {
-            // Save verified state — PIN itself is never stored
             localStorage.setItem(PIN_KEY, 'verified');
             _sessionPin  = pinBuffer; // keep in memory for submissions this session
             pinVerified  = true;
             document.getElementById('pinOverlay').classList.add('hidden');
             document.getElementById('pinError').classList.remove('show');
+            // Reset sub text for next visit
+            document.getElementById('pinSub').textContent = "Your 4-digit PIN was sent with your link.\nYou'll only need to enter it once.";
             onAuthenticated();
         } else {
             showPinError(result.reason || 'Incorrect PIN');

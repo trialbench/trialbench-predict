@@ -879,17 +879,24 @@ function renderPredictPage() {
     const myPredMap = {};
     myPreds.forEach(function(p) {
         var entry = { s1: p.s1, s2: p.s2 };
-        myPredMap[p.matchId] = entry;           // full uid e.g. "4_Spain_Cabo_Verde"
-        var plainId = p.matchId.split('_')[0];  // plain id e.g. "4"
-        if (plainId) myPredMap[plainId] = entry; // so Past Results lookup by m.id works
+        myPredMap[p.matchId] = entry; // full uid e.g. "4_Spain_Cabo_Verde"
+        // Key by team-name pair (everything after first underscore segment)
+        // so Past Results can match by team names regardless of sheet id numbering
+        var parts = p.matchId.split('_');
+        if (parts.length >= 2) {
+            myPredMap['__teams__' + parts.slice(1).join('_')] = entry;
+        }
     });
 
     // Also check localStorage for predictions submitted this session
     const localPreds = getLocalPredictions();
     Object.keys(localPreds).forEach(function(uid) {
-        myPredMap[uid] = localPreds[uid];
-        var plainId = uid.split('_')[0];
-        if (plainId) myPredMap[plainId] = localPreds[uid];
+        var entry = localPreds[uid];
+        myPredMap[uid] = entry;
+        var parts = uid.split('_');
+        if (parts.length >= 2) {
+            myPredMap['__teams__' + parts.slice(1).join('_')] = entry;
+        }
     });
 
     // Open matches section
@@ -905,51 +912,84 @@ function renderPredictPage() {
             const pred = myPredMap[m.uid];
             const kicked = isKickedOff(m.time);
             const isPredicted = !!pred;
-            const isLocked = kicked && !isPredicted;
 
-            return `
-            <div class="match-card ${isPredicted ? 'predicted' : ''} ${isLocked ? 'locked-match' : ''}" id="mc-${m.uid}">
-                <div class="match-meta">
-                    <span class="match-grp">Group ${m.grp}</span>
-                    <span class="match-time ${kicked && !isPredicted ? 'live' : ''}">${kicked ? (isPredicted ? 'Locked ✓' : 'Started') : m.time}</span>
-                </div>
-                <div class="match-body">
-                    <div class="match-team">
-                        <div class="match-flag">${teamFlag(m.team1)}</div>
-                        <div class="match-name">${m.team1}</div>
-                    </div>
-                    <div>
-                        <div class="score-row">
-                            <input class="score-input" type="number" min="0" max="20"
-                                id="s1-${m.uid}" placeholder="0"
-                                value="${isPredicted ? pred.s1 : ''}"
-                                ${isPredicted || kicked ? 'disabled' : ''}
-                                oninput="clamp(this)">
-                            <span class="score-dash">–</span>
-                            <input class="score-input" type="number" min="0" max="20"
-                                id="s2-${m.uid}" placeholder="0"
-                                value="${isPredicted ? pred.s2 : ''}"
-                                ${isPredicted || kicked ? 'disabled' : ''}
-                                oninput="clamp(this)">
-                        </div>
-                    </div>
-                    <div class="match-team">
-                        <div class="match-flag">${teamFlag(m.team2)}</div>
-                        <div class="match-name">${m.team2}</div>
-                    </div>
-                </div>
-                <div class="match-footer">
-                    ${isPredicted
-                        ? `<div class="predicted-row">
-                               <span class="predicted-label">✅ Locked in</span>
-                               <span class="predicted-score">${pred.s1} – ${pred.s2}</span>
-                           </div>`
-                        : kicked
-                        ? `<div class="predicted-row"><span style="color:var(--text-muted);font-size:12px;font-weight:600">⏰ Deadline passed</span></div>`
-                        : `<button class="submit-btn" onclick="submitPrediction('${m.uid}', '${m.date}')">Lock in prediction</button>`
-                    }
-                </div>
-            </div>`;
+            // Look up final score from Matches sheet (team-name match)
+            const t1s = m.team1.replace(/[^a-zA-Z0-9]/g, '_');
+            const t2s = m.team2.replace(/[^a-zA-Z0-9]/g, '_');
+            const liveMatch = kicked ? _matchesData.find(function(r) {
+                return r.team1.replace(/[^a-zA-Z0-9]/g, '_') === t1s &&
+                       r.team2.replace(/[^a-zA-Z0-9]/g, '_') === t2s;
+            }) : null;
+            const hasScore = liveMatch && !isNaN(liveMatch.s1) && !isNaN(liveMatch.s2);
+
+            // Points if we have both a prediction and a final score
+            let resultClass = '', resultLabel = '', pts = 0;
+            if (hasScore && isPredicted) {
+                const exact  = pred.s1 === liveMatch.s1 && pred.s2 === liveMatch.s2;
+                const result = Math.sign(pred.s1 - pred.s2) === Math.sign(liveMatch.s1 - liveMatch.s2);
+                if (exact)        { pts = 3; resultClass = 'exact';   resultLabel = '&#127919; Exact score!'; }
+                else if (result)  { pts = 1; resultClass = 'correct'; resultLabel = '&#9989; Correct result'; }
+                else              { pts = 0; resultClass = 'wrong';   resultLabel = '&#10060; Wrong'; }
+            }
+
+            // Centre: show final score if available, else input boxes
+            const centreHTML = hasScore
+                ? '<div style="text-align:center">'
+                    + '<div style="font-size:26px;font-weight:900;letter-spacing:-1px">' + liveMatch.s1 + '–' + liveMatch.s2 + '</div>'
+                    + (isPredicted ? '<div style="font-size:11px;color:var(--text-muted);margin-top:4px;font-weight:600">Your pick: ' + pred.s1 + '–' + pred.s2 + '</div>' : '')
+                    + '</div>'
+                : '<div><div class="score-row">'
+                    + '<input class="score-input" type="number" min="0" max="20" id="s1-' + m.uid + '" placeholder="0"'
+                    + ' value="' + (isPredicted ? pred.s1 : '') + '"'
+                    + (isPredicted || kicked ? ' disabled' : '') + ' oninput="clamp(this)">'
+                    + '<span class="score-dash">–</span>'
+                    + '<input class="score-input" type="number" min="0" max="20" id="s2-' + m.uid + '" placeholder="0"'
+                    + ' value="' + (isPredicted ? pred.s2 : '') + '"'
+                    + (isPredicted || kicked ? ' disabled' : '') + ' oninput="clamp(this)">'
+                    + '</div></div>';
+
+            // Footer
+            let footerHTML;
+            if (hasScore && isPredicted) {
+                footerHTML = '<div class="result-reveal">'
+                    + '<span class="result-label">' + resultLabel + '</span>'
+                    + '<span class="result-pts ' + resultClass + '">' + (pts > 0 ? '+' + pts + ' pts' : '0 pts') + '</span>'
+                    + '</div>';
+            } else if (hasScore && !isPredicted) {
+                footerHTML = '<div class="match-footer"><div class="predicted-row">'
+                    + '<span style="color:var(--text-muted);font-size:12px;font-weight:600">&#9203; Deadline passed</span>'
+                    + '</div></div>';
+            } else if (isPredicted) {
+                footerHTML = '<div class="match-footer"><div class="predicted-row">'
+                    + '<span class="predicted-label">&#9989; Locked in</span>'
+                    + '<span class="predicted-score">' + pred.s1 + ' – ' + pred.s2 + '</span>'
+                    + '</div></div>';
+            } else if (kicked) {
+                footerHTML = '<div class="match-footer"><div class="predicted-row">'
+                    + '<span style="color:var(--text-muted);font-size:12px;font-weight:600">&#9203; Deadline passed</span>'
+                    + '</div></div>';
+            } else {
+                footerHTML = '<div class="match-footer">'
+                    + '<button class="submit-btn" onclick="submitPrediction(\'' + m.uid + '\', \'' + m.date + '\')">Lock in prediction</button>'
+                    + '</div>';
+            }
+
+            // Header time label
+            const timeLabel = hasScore ? 'FT' : kicked ? (isPredicted ? 'Locked ✓' : 'Started') : m.time;
+            const timeClass = kicked && !hasScore && !isPredicted ? 'live' : '';
+
+            return '<div class="match-card' + (isPredicted && !hasScore ? ' predicted' : '') + '" id="mc-' + m.uid + '">'
+                + '<div class="match-meta">'
+                + '<span class="match-grp">Group ' + m.grp + '</span>'
+                + '<span class="match-time ' + timeClass + '">' + timeLabel + '</span>'
+                + '</div>'
+                + '<div class="match-body">'
+                + '<div class="match-team"><div class="match-flag">' + teamFlag(m.team1) + '</div><div class="match-name">' + m.team1 + '</div></div>'
+                + centreHTML
+                + '<div class="match-team"><div class="match-flag">' + teamFlag(m.team2) + '</div><div class="match-name">' + m.team2 + '</div></div>'
+                + '</div>'
+                + footerHTML
+                + '</div>';
         }).join('');
     }
 
@@ -969,7 +1009,11 @@ function renderPredictPage() {
     } else {
         doneHdr.style.display = 'flex';
         doneContainer.innerHTML = pastMatches.reverse().map(m => {
-            const pred = myPredMap[m.id];
+            // Look up prediction: try Matches sheet id, then team-name pair from uid
+            var _t1 = m.team1.replace(/[^a-zA-Z0-9]/g, '_');
+            var _t2 = m.team2.replace(/[^a-zA-Z0-9]/g, '_');
+            var _teamKey = '__teams__' + _t1 + '_' + _t2;
+            var pred = myPredMap[m.id] || myPredMap[_teamKey];
             let resultClass = 'no-pred', resultLabel = 'No prediction', pts = 0;
 
             if (pred && !isNaN(pred.s1) && !isNaN(pred.s2)) {

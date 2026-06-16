@@ -543,7 +543,7 @@ const PLAYERS = [
 //  INIT — read player from URL ?player=xxx
 // ══════════════════════════════════════════════
 const params       = new URLSearchParams(window.location.search);
-const playerId     = params.get('player') || '';
+const playerId     = (params.get('player') || '').trim().toLowerCase();
 const playerParam  = params.has('player');
 const playerData   = PLAYERS.find(p => p.id === playerId);
 
@@ -848,8 +848,8 @@ async function loadData() {
 
         // Predictions: A=PlayerID, B=PlayerName, C=MatchID, D=Date, E=Score1, F=Score2
         _predictionsData = rawPredictions
-            .filter(r => r[0] && r[2])
-            .map(r => ({ playerId: r[0], playerName: r[1], matchId: r[2], date: r[3], s1: parseInt(r[4]), s2: parseInt(r[5]) }));
+            .filter(r => r[0] && r[2] && r[0].trim().toLowerCase() !== 'playerid') // skip header row
+            .map(r => ({ playerId: r[0].trim().toLowerCase(), playerName: r[1], matchId: r[2].trim(), date: r[3], s1: parseInt(r[4]), s2: parseInt(r[5]) }));
 
         renderPredictPage();
         renderStandings();
@@ -1081,7 +1081,7 @@ async function submitPrediction(uid, matchDate) {
             return;
         }
 
-        const payload = JSON.stringify({
+        const _payload = JSON.stringify({
             action:     'submitPrediction',
             token:      SECRET_TOKEN,
             playerId,
@@ -1093,13 +1093,9 @@ async function submitPrediction(uid, matchDate) {
             s2,
             submittedAt: new Date().toISOString(),
         });
-        const formData = new FormData();
-        formData.append('data', payload);
-
-        const res = await fetch(GAS_URL, {
-            method: 'POST',
-            body: formData,
-        });
+        const _fd = new FormData();
+        _fd.append('data', _payload);
+        const res = await fetch(GAS_URL, { method: 'POST', body: _fd });
 
         const result = await res.json();
 

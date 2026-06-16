@@ -1065,13 +1065,22 @@ function renderStandings() {
         if (!playerPts[p.playerId]) playerPts[p.playerId] = 0;
     });
 
-    // Match predictions against results
-    _matchesData.forEach(match => {
-        const matchPreds = _predictionsData.filter(p => p.matchId === match.id);
-        matchPreds.forEach(pred => {
+    // Match predictions against results using team-name matching (cross-sheet safe)
+    _matchesData.forEach(function(match) {
+        var t1s = match.team1.replace(/[^a-zA-Z0-9]/g, '_');
+        var t2s = match.team2.replace(/[^a-zA-Z0-9]/g, '_');
+        var matchPreds = _predictionsData.filter(function(p) {
+            // uid format: {scheduleId}_{team1sanitized}_{team2sanitized...}
+            // extract team portion after first underscore segment and compare
+            var parts = p.matchId.split('_');
+            var teamPart = parts.slice(1).join('_'); // e.g. "Spain_Cabo_Verde"
+            var matchTeamPart = t1s + '_' + t2s;    // e.g. "Spain_Cabo_Verde"
+            return teamPart === matchTeamPart;
+        });
+        matchPreds.forEach(function(pred) {
             if (isNaN(pred.s1) || isNaN(pred.s2)) return;
-            const exact  = pred.s1 === match.s1 && pred.s2 === match.s2;
-            const result = Math.sign(pred.s1 - pred.s2) === Math.sign(match.s1 - match.s2);
+            var exact  = pred.s1 === match.s1 && pred.s2 === match.s2;
+            var result = Math.sign(pred.s1 - pred.s2) === Math.sign(match.s1 - match.s2);
             if (exact)        playerPts[pred.playerId] = (playerPts[pred.playerId] || 0) + 3;
             else if (result)  playerPts[pred.playerId] = (playerPts[pred.playerId] || 0) + 1;
         });

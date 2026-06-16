@@ -876,12 +876,21 @@ function renderPredictPage() {
 
     // My predictions (from sheet)
     const myPreds = _predictionsData.filter(p => p.playerId === playerId);
-    const myPredMap = {}; // uid → { s1, s2 }
-    myPreds.forEach(p => { myPredMap[p.matchId] = { s1: p.s1, s2: p.s2 }; });
+    const myPredMap = {};
+    myPreds.forEach(function(p) {
+        var entry = { s1: p.s1, s2: p.s2 };
+        myPredMap[p.matchId] = entry;           // full uid e.g. "4_Spain_Cabo_Verde"
+        var plainId = p.matchId.split('_')[0];  // plain id e.g. "4"
+        if (plainId) myPredMap[plainId] = entry; // so Past Results lookup by m.id works
+    });
 
     // Also check localStorage for predictions submitted this session
     const localPreds = getLocalPredictions();
-    Object.assign(myPredMap, localPreds);
+    Object.keys(localPreds).forEach(function(uid) {
+        myPredMap[uid] = localPreds[uid];
+        var plainId = uid.split('_')[0];
+        if (plainId) myPredMap[plainId] = localPreds[uid];
+    });
 
     // Open matches section
     const openHdr = document.getElementById('openHdr');

@@ -1512,6 +1512,12 @@ function saveLocalPrediction(matchId, pred) {
 // ══════════════════════════════════════════════
 //  HELPERS
 // ══════════════════════════════════════════════
+function toggleLbBreakdown(row) {
+    const bd = row.querySelector('.pred-lb-breakdown');
+    if (!bd) return;
+    bd.classList.toggle('open');
+}
+
 function clamp(input) {
     let v = parseInt(input.value);
     if (isNaN(v) || v < 0) input.value = '';

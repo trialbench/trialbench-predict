@@ -1015,13 +1015,31 @@ function getISTNow() {
     return new Date(utc + 5.5 * 3600000);
 }
 
+// Parse time string from sheet: handles "21:30" text OR decimal fraction (0.895833)
+function parseSheetTime(timeStr) {
+    if (timeStr === null || timeStr === undefined || timeStr === '') return null;
+    var s = String(timeStr).trim();
+    // Decimal fraction exported by gviz (e.g. 0.895833 = 21h 30m)
+    if (s.indexOf(':') === -1) {
+        var frac = parseFloat(s);
+        if (!isNaN(frac) && frac >= 0 && frac < 1) {
+            var totalMins = Math.round(frac * 24 * 60);
+            return { hh: Math.floor(totalMins / 60), mm: totalMins % 60 };
+        }
+        return null;
+    }
+    // "HH:MM" string
+    var parts = s.split(':');
+    var hh = parseInt(parts[0]), mm = parseInt(parts[1]);
+    if (!isNaN(hh) && !isNaN(mm)) return { hh: hh, mm: mm };
+    return null;
+}
+
 function isKickedOff(timeStr) {
-    if (!timeStr) return false;
-    const [hh, mm] = timeStr.split(':').map(Number);
-    if (isNaN(hh)) return false;
-    const ist = getISTNow();
-    const nowMins = ist.getHours() * 60 + ist.getMinutes();
-    return nowMins >= hh * 60 + mm;
+    var t = parseSheetTime(timeStr);
+    if (!t) return false;
+    var ist = getISTNow();
+    return (ist.getHours() * 60 + ist.getMinutes()) >= (t.hh * 60 + t.mm);
 }
 
 function isPredictionWindowOpen() {
@@ -1030,17 +1048,14 @@ function isPredictionWindowOpen() {
 }
 
 function getKickoffMs(dateStr, timeStr) {
-    // Build a proper UTC ms timestamp from sheet date + IST time
-    if (!dateStr || !timeStr) return null;
-    const [hh, mm] = timeStr.split(':').map(Number);
-    if (isNaN(hh)) return null;
-    const d = parseSheetDate(dateStr);
+    // Returns UTC ms for the kickoff.
+    // new Date(y, m, d, hh, mm) uses LOCAL time — device is in IST so this is correct.
+    // .getTime() already returns UTC ms, no offset subtraction needed.
+    var t = parseSheetTime(timeStr);
+    if (!t) return null;
+    var d = parseSheetDate(dateStr);
     if (!d) return null;
-    // Sheet date is local date — treat as IST (UTC+5:30)
-    // IST offset = 330 minutes
-    const istOffsetMs = 330 * 60 * 1000;
-    const kickoffIST = new Date(d.getFullYear(), d.getMonth(), d.getDate(), hh, mm, 0, 0);
-    return kickoffIST.getTime() - istOffsetMs; // convert IST to UTC ms
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate(), t.hh, t.mm, 0, 0).getTime();
 }
 
 // Active countdown timers (cleared on re-render)
@@ -1093,7 +1108,6 @@ function renderPredictPage() {
     // Clear any existing countdown timers
     _countdownTimers.forEach(clearInterval);
     _countdownTimers = [];
-    _pendingTimers   = [];
 
     // Today's matches
     const todayMatches = _scheduleData.filter(m => {

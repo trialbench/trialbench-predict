@@ -361,6 +361,48 @@ body {
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { border-color: rgba(239,68,68,0.3); color: var(--danger); }
 
+/* ── COUNTDOWN TIMER ── */
+.match-timer {
+    margin-left: auto; font-size: 11px; font-weight: 800;
+    display: flex; align-items: center; gap: 4px; color: var(--accent);
+}
+.match-timer.urgent { color: var(--danger); animation: timerPulse 1s ease-in-out infinite; }
+.match-timer.locked-time { color: var(--text-muted); }
+@keyframes timerPulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+
+/* ── LOCKED BEFORE 1PM ── */
+.match-card.locked-1pm { opacity: 0.55; pointer-events: none; }
+.locked-1pm-notice {
+    padding: 10px 16px; border-top: 1px solid var(--border);
+    font-size: 12px; font-weight: 700; color: var(--text-muted);
+    display: flex; align-items: center; gap: 6px;
+}
+
+/* ── PRACTICE MODE BANNER ── */
+.practice-banner {
+    margin: 12px 20px 0;
+    background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.03));
+    border: 1px solid rgba(245,158,11,0.18);
+    border-radius: 12px; padding: 11px 16px;
+    display: flex; align-items: center; gap: 10px;
+}
+.practice-banner.hidden { display: none; }
+.practice-banner-icon { font-size: 18px; flex-shrink: 0; }
+.practice-banner-title { font-size: 12px; font-weight: 800; color: var(--warning); }
+.practice-banner-sub { font-size: 11px; font-weight: 500; color: var(--text-muted); margin-top: 1px; line-height: 1.4; }
+
+/* ── STREAK BONUS BANNER ── */
+.streak-bonus {
+    margin: 12px 20px 0;
+    background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.04));
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 12px;
+    padding: 12px 16px;
+    display: flex; align-items: center; gap: 10px;
+    font-size: 13px; font-weight: 700; color: #F59E0B;
+}
+.streak-bonus.hidden { display: none; }
+
 /* ── MY SCORE SUMMARY ── */
 .myscore-summary {
     background: linear-gradient(135deg, rgba(34,197,94,0.08), rgba(34,197,94,0.02));
@@ -480,6 +522,15 @@ body {
 <!-- STREAK BONUS BANNER -->
 <div class="streak-bonus hidden" id="streakBonusBanner">
     🔥 Streak milestone! You earned <strong style="margin:0 4px">a bonus point</strong> — keep it going!
+</div>
+
+<!-- PRACTICE MODE BANNER -->
+<div class="practice-banner" id="practiceBanner">
+    <div class="practice-banner-icon">🎯</div>
+    <div>
+        <div class="practice-banner-title">Practice Mode — Points count from R32</div>
+        <div class="practice-banner-sub">Submit picks now to build your streak. Scoring goes live at Round of 32.</div>
+    </div>
 </div>
 
 <!-- PAGES -->
@@ -949,6 +1000,24 @@ function isKickedOff(timeStr) {
     return nowMins >= hh * 60 + mm;
 }
 
+function isPredictionWindowOpen() {
+    const ist = getISTNow();
+    return ist.getHours() >= 13; // 1:00 PM IST
+}
+
+function getKickoffMs(timeStr) {
+    if (!timeStr) return null;
+    const [hh, mm] = timeStr.split(':').map(Number);
+    if (isNaN(hh)) return null;
+    const ist = getISTNow();
+    const kickoff = new Date(ist);
+    kickoff.setHours(hh, mm, 0, 0);
+    return kickoff.getTime();
+}
+
+// Active countdown timers (cleared on re-render)
+let _countdownTimers = [];
+
 // ── Load + render ──
 let _scheduleData = [];
 let _matchesData  = [];
@@ -990,6 +1059,11 @@ async function loadData() {
 // ── Render predict page ──
 function renderPredictPage() {
     const todayMid = toMidnight(new Date());
+    const windowOpen = isPredictionWindowOpen();
+
+    // Clear any existing countdown timers
+    _countdownTimers.forEach(clearInterval);
+    _countdownTimers = [];
 
     // Today's matches from schedule — add unique uid per match
     const todayMatches = _scheduleData.filter(m => {
@@ -1005,9 +1079,7 @@ function renderPredictPage() {
     const myPredMap = {};
     myPreds.forEach(function(p) {
         var entry = { s1: p.s1, s2: p.s2 };
-        myPredMap[p.matchId] = entry; // full uid e.g. "4_Spain_Cabo_Verde"
-        // Key by team-name pair (everything after first underscore segment)
-        // so Past Results can match by team names regardless of sheet id numbering
+        myPredMap[p.matchId] = entry;
         var parts = p.matchId.split('_');
         if (parts.length >= 2) {
             myPredMap['__teams__' + parts.slice(1).join('_')] = entry;
@@ -1038,8 +1110,9 @@ function renderPredictPage() {
             const pred = myPredMap[m.uid];
             const kicked = isKickedOff(m.time);
             const isPredicted = !!pred;
+            const before1pm = !windowOpen && !kicked && !isPredicted;
 
-            // Look up final score from Matches sheet (team-name match)
+            // Look up final score from Matches sheet
             const t1s = m.team1.replace(/[^a-zA-Z0-9]/g, '_');
             const t2s = m.team2.replace(/[^a-zA-Z0-9]/g, '_');
             const liveMatch = kicked ? _matchesData.find(function(r) {
@@ -1059,6 +1132,7 @@ function renderPredictPage() {
             }
 
             // Centre: show final score if available, else input boxes
+            const inputDisabled = isPredicted || kicked || before1pm;
             const centreHTML = hasScore
                 ? '<div style="text-align:center">'
                     + '<div style="font-size:26px;font-weight:900;letter-spacing:-1px">' + liveMatch.s1 + '–' + liveMatch.s2 + '</div>'
@@ -1067,11 +1141,11 @@ function renderPredictPage() {
                 : '<div><div class="score-row">'
                     + '<input class="score-input" type="number" min="0" max="20" id="s1-' + m.uid + '" placeholder="0"'
                     + ' value="' + (isPredicted ? pred.s1 : '') + '"'
-                    + (isPredicted || kicked ? ' disabled' : '') + ' oninput="clamp(this)">'
+                    + (inputDisabled ? ' disabled' : '') + ' oninput="clamp(this)">'
                     + '<span class="score-dash">–</span>'
                     + '<input class="score-input" type="number" min="0" max="20" id="s2-' + m.uid + '" placeholder="0"'
                     + ' value="' + (isPredicted ? pred.s2 : '') + '"'
-                    + (isPredicted || kicked ? ' disabled' : '') + ' oninput="clamp(this)">'
+                    + (inputDisabled ? ' disabled' : '') + ' oninput="clamp(this)">'
                     + '</div></div>';
 
             // Footer
@@ -1094,20 +1168,57 @@ function renderPredictPage() {
                 footerHTML = '<div class="match-footer"><div class="predicted-row">'
                     + '<span style="color:var(--text-muted);font-size:12px;font-weight:600">&#9203; Deadline passed</span>'
                     + '</div></div>';
+            } else if (before1pm) {
+                footerHTML = '<div class="locked-1pm-notice">🔒 Opens at 1:00 PM</div>';
             } else {
                 footerHTML = '<div class="match-footer">'
                     + '<button class="submit-btn" onclick="submitPrediction(\'' + m.uid + '\', \'' + m.date + '\')">Lock in prediction</button>'
                     + '</div>';
             }
 
-            // Header time label
-            const timeLabel = hasScore ? 'FT' : kicked ? (isPredicted ? 'Locked ✓' : 'Started') : m.time;
-            const timeClass = kicked && !hasScore && !isPredicted ? 'live' : '';
+            // Timer label in header
+            let timerHTML;
+            if (hasScore) {
+                timerHTML = '<span class="match-time">FT</span>';
+            } else if (kicked) {
+                timerHTML = '<span class="match-time live">' + (isPredicted ? 'Locked ✓' : 'Started') + '</span>';
+            } else if (before1pm) {
+                timerHTML = '<span class="match-time" style="color:var(--text-muted)">Opens 1:00 PM</span>';
+            } else {
+                // Live countdown to kickoff
+                const timerId = 'timer-' + m.uid;
+                timerHTML = '<span class="match-timer" id="' + timerId + '">⏱ --:--</span>';
+                // Start countdown after render
+                setTimeout(() => {
+                    const kickoffMs = getKickoffMs(m.time);
+                    if (!kickoffMs) return;
+                    function tick() {
+                        const el = document.getElementById(timerId);
+                        if (!el) return;
+                        const diff = Math.max(0, Math.floor((kickoffMs - Date.now()) / 1000));
+                        if (diff === 0) {
+                            el.textContent = '⏱ Starting';
+                            renderPredictPage(); // re-render to lock card
+                            return;
+                        }
+                        const h = Math.floor(diff / 3600);
+                        const min = Math.floor((diff % 3600) / 60);
+                        const sec = diff % 60;
+                        el.textContent = h > 0
+                            ? `⏱ ${h}h ${min}m`
+                            : `⏱ ${String(min).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`;
+                        el.className = 'match-timer' + (h === 0 && min < 15 ? ' urgent' : '');
+                    }
+                    tick();
+                    const tid = setInterval(tick, 1000);
+                    _countdownTimers.push(tid);
+                }, 0);
+            }
 
-            return '<div class="match-card' + (isPredicted && !hasScore ? ' predicted' : '') + '" id="mc-' + m.uid + '">'
+            return '<div class="match-card' + (isPredicted && !hasScore ? ' predicted' : '') + (before1pm ? ' locked-1pm' : '') + '" id="mc-' + m.uid + '">'
                 + '<div class="match-meta">'
                 + '<span class="match-grp">Group ' + m.grp + '</span>'
-                + '<span class="match-time ' + timeClass + '">' + timeLabel + '</span>'
+                + timerHTML
                 + '</div>'
                 + '<div class="match-body">'
                 + '<div class="match-team"><div class="match-flag">' + teamFlag(m.team1) + '</div><div class="match-name">' + m.team1 + '</div></div>'
@@ -1211,10 +1322,18 @@ function renderStandings() {
     const playerPts = calcPlayerPts();
 
     // Build rows from PLAYERS roster
-    const rows = PLAYERS.map(p => ({
-        ...p,
-        pts: playerPts[p.id] || 0,
-    })).sort((a, b) => b.pts - a.pts);
+    const MILESTONES = [3, 6, 9, 12, 15];
+    const rows = PLAYERS.map(p => {
+        // Streak bonus for this player (stored in localStorage only for current player,
+        // so for others we can't know their streak — show prediction pts only)
+        let streakBonus = 0;
+        if (p.id === playerId) {
+            const { count } = getStreak();
+            const capped = Math.min(count, 15);
+            streakBonus = MILESTONES.filter(m => m <= capped).reduce((acc, m, i) => acc + (i + 1), 0);
+        }
+        return { ...p, pts: (playerPts[p.id] || 0) + streakBonus };
+    }).sort((a, b) => b.pts - a.pts);
 
     if (rows.length === 0) {
         container.innerHTML = `<div class="loading-state"><div class="icon">📊</div>No predictions yet.</div>`;

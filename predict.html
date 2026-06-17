@@ -1179,38 +1179,36 @@ function renderPredictPage() {
     }
 }
 
-// ── Render standings ──
-function renderStandings() {
-    const container = document.getElementById('predStandings');
-
-    // Calculate points per player from predictions sheet
+// ── Shared points calculator (used by standings + my score) ──
+function calcPlayerPts() {
     const playerPts = {};
-    const playerStreaks = {};
-
     _predictionsData.forEach(p => {
         if (!playerPts[p.playerId]) playerPts[p.playerId] = 0;
     });
-
-    // Match predictions against results using team-name matching (cross-sheet safe)
     _matchesData.forEach(function(match) {
         var t1s = match.team1.replace(/[^a-zA-Z0-9]/g, '_');
         var t2s = match.team2.replace(/[^a-zA-Z0-9]/g, '_');
         var matchPreds = _predictionsData.filter(function(p) {
-            // uid format: {scheduleId}_{team1sanitized}_{team2sanitized...}
-            // extract team portion after first underscore segment and compare
             var parts = p.matchId.split('_');
-            var teamPart = parts.slice(1).join('_'); // e.g. "Spain_Cabo_Verde"
-            var matchTeamPart = t1s + '_' + t2s;    // e.g. "Spain_Cabo_Verde"
+            var teamPart = parts.slice(1).join('_');
+            var matchTeamPart = t1s + '_' + t2s;
             return teamPart === matchTeamPart;
         });
         matchPreds.forEach(function(pred) {
             if (isNaN(pred.s1) || isNaN(pred.s2)) return;
             var exact  = pred.s1 === match.s1 && pred.s2 === match.s2;
             var result = Math.sign(pred.s1 - pred.s2) === Math.sign(match.s1 - match.s2);
-            if (exact)        playerPts[pred.playerId] = (playerPts[pred.playerId] || 0) + 3;
-            else if (result)  playerPts[pred.playerId] = (playerPts[pred.playerId] || 0) + 1;
+            if (exact)       playerPts[pred.playerId] = (playerPts[pred.playerId] || 0) + 3;
+            else if (result) playerPts[pred.playerId] = (playerPts[pred.playerId] || 0) + 1;
         });
     });
+    return playerPts;
+}
+
+// ── Render standings ──
+function renderStandings() {
+    const container = document.getElementById('predStandings');
+    const playerPts = calcPlayerPts();
 
     // Build rows from PLAYERS roster
     const rows = PLAYERS.map(p => ({
@@ -1347,33 +1345,39 @@ function switchTab(tab) {
 function renderMyScore() {
     const { count } = getStreak();
     const MILESTONES = [3, 6, 9, 12, 15];
-    const localPreds = getLocalPredictions();
 
-    // Calculate points breakdown
+    // Pull pts from sheet data (same source as standings)
+    const playerPts = calcPlayerPts();
+    const myPredPts = playerPts[playerId] || 0;
+
+    // Break down exact vs result pts for this player
     let exactPts = 0, resultPts = 0;
-    const doneMathces = _matchesData ? _matchesData.filter(m => m.s1 !== null && m.s2 !== null && !isNaN(m.s1)) : [];
-    doneMathces.forEach(m => {
-        const uid = Object.keys(localPreds).find(k => {
-            const parts = k.split('_'); const teamPart = parts.slice(1).join('_');
-            const t1s = m.team1.replace(/[^a-zA-Z0-9]/g,'_');
-            const t2s = m.team2.replace(/[^a-zA-Z0-9]/g,'_');
+    _matchesData.forEach(function(match) {
+        var t1s = match.team1.replace(/[^a-zA-Z0-9]/g, '_');
+        var t2s = match.team2.replace(/[^a-zA-Z0-9]/g, '_');
+        var myPred = _predictionsData.find(function(p) {
+            if (p.playerId !== playerId) return false;
+            var parts = p.matchId.split('_');
+            var teamPart = parts.slice(1).join('_');
             return teamPart === t1s + '_' + t2s;
         });
-        if (!uid) return;
-        const pred = localPreds[uid];
-        if (!pred || isNaN(pred.s1) || isNaN(pred.s2)) return;
-        if (pred.s1 === m.s1 && pred.s2 === m.s2) exactPts += 3;
-        else if (Math.sign(pred.s1 - pred.s2) === Math.sign(m.s1 - m.s2)) resultPts += 1;
+        if (!myPred || isNaN(myPred.s1) || isNaN(myPred.s2)) return;
+        if (myPred.s1 === match.s1 && myPred.s2 === match.s2) exactPts += 3;
+        else if (Math.sign(myPred.s1 - myPred.s2) === Math.sign(match.s1 - match.s2)) resultPts += 1;
     });
 
-    // Streak bonus pts earned so far
-    const streakBonusPts = MILESTONES.filter(m => m <= count).reduce((acc, m, i) => acc + (i + 1), 0);
-    const cappedBonus = Math.min(streakBonusPts, 15);
-    const total = exactPts + resultPts + cappedBonus;
+    // Streak bonus pts earned so far (cumulative, capped at 15d)
+    const cappedCount = Math.min(count, 15);
+    const streakBonusPts = MILESTONES.filter(m => m <= cappedCount)
+        .reduce((acc, m, i) => acc + (i + 1), 0);
+    const total = exactPts + resultPts + streakBonusPts;
 
-    // Rank from standings
-    const myRow = document.querySelector('.pred-lb-row.me .pred-lb-pts');
-    const rank = myRow ? myRow.closest('.pred-lb-row') : null;
+    // Rank — sort all players by pts descending
+    const rows = PLAYERS.map(p => ({ id: p.id, pts: playerPts[p.id] || 0 }))
+        .sort((a, b) => b.pts - a.pts);
+    const myRank = rows.findIndex(r => r.id === playerId) + 1;
+    const rankEmojis = { 1: '🥇', 2: '🥈', 3: '🥉' };
+    const rankDisplay = rankEmojis[myRank] || `#${myRank}`;
 
     // ── Summary card ──
     document.getElementById('myScoreSummary').innerHTML = `
@@ -1385,7 +1389,7 @@ function renderMyScore() {
                 </div>
                 <div class="myscore-rank">
                     <small>Your Rank</small>
-                    —
+                    ${rankDisplay} of ${PLAYERS.length}
                 </div>
             </div>
             <div class="myscore-breakdown">
@@ -1398,7 +1402,7 @@ function renderMyScore() {
                     <div class="myscore-break-lbl">Correct Result</div>
                 </div>
                 <div class="myscore-break-item">
-                    <div class="myscore-break-val" style="color:var(--warning)">${cappedBonus}</div>
+                    <div class="myscore-break-val" style="color:var(--warning)">${streakBonusPts}</div>
                     <div class="myscore-break-lbl">Streak Bonus</div>
                 </div>
             </div>
@@ -1408,8 +1412,7 @@ function renderMyScore() {
     const nextMs = MILESTONES.find(m => m > count);
     const milestonesHtml = MILESTONES.map((m, i) => {
         const cls = m <= count ? 'reached' : m === nextMs ? 'next' : '';
-        const bonusPt = i + 1;
-        return `<span class="ms-chip ${cls}">${m <= count ? '✅' : m === nextMs ? '→' : ''} ${m}d +${bonusPt}</span>`;
+        return `<span class="ms-chip ${cls}">${m <= count ? '✅' : m === nextMs ? '→' : ''} ${m}d +${i + 1}</span>`;
     }).join('');
 
     document.getElementById('myScoreStreak').innerHTML = `
@@ -1421,14 +1424,15 @@ function renderMyScore() {
                 <div class="myscore-streak-milestones">${milestonesHtml}</div>
             </div>
             <div class="myscore-streak-pts">
-                <div class="myscore-streak-pts-val">+${cappedBonus}</div>
+                <div class="myscore-streak-pts-val">+${streakBonusPts}</div>
                 <div class="myscore-streak-pts-lbl">pts earned</div>
             </div>
         </div>`;
 
     // ── Show match history header ──
     const doneHdr = document.getElementById('doneHdr');
-    if (doneHdr && doneMathces.length > 0) doneHdr.style.display = '';
+    const hasDone = _matchesData && _matchesData.some(m => m.s1 !== null && !isNaN(m.s1));
+    if (doneHdr) doneHdr.style.display = hasDone ? '' : 'none';
 }
 
 function showToast(msg, isError = false) {

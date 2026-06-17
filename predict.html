@@ -1104,15 +1104,15 @@ function renderPredictPage() {
         isToday: true
     }));
 
-    // Tomorrow's matches — only shown after 1pm
-    const tomorrowMatches = windowOpen ? _scheduleData.filter(m => {
+    // Tomorrow's matches — always show so players can predict ahead of time
+    const tomorrowMatches = _scheduleData.filter(m => {
         const d = parseSheetDate(m.date);
         return d && toMidnight(d).getTime() === tomorrowMid.getTime();
     }).map(m => ({
         ...m,
         uid: (m.id + '_' + m.team1 + '_' + m.team2).replace(/[^a-zA-Z0-9]/g, '_'),
         isToday: false
-    })) : [];
+    }));
 
     const allMatches = [...todayMatches, ...tomorrowMatches];
 
@@ -1155,7 +1155,8 @@ function renderPredictPage() {
             const pred = myPredMap[m.uid];
             const kicked = m.isToday ? isKickedOff(m.time) : false; // tomorrow never kicked off
             const isPredicted = !!pred;
-            const before1pm = !windowOpen && !kicked && !isPredicted;
+            // Today: open always, closes at kickoff. Tomorrow: locked until 1pm IST.
+            const before1pm = !m.isToday && !windowOpen && !isPredicted;
 
             const t1s = m.team1.replace(/[^a-zA-Z0-9]/g, '_');
             const t2s = m.team2.replace(/[^a-zA-Z0-9]/g, '_');
@@ -1218,6 +1219,7 @@ function renderPredictPage() {
                 setTimeout(() => {
                     const kickoffMs = getKickoffMs(m.date, m.time);
                     if (!kickoffMs) return;
+                    let tid; // declared before tick() so clearInterval(tid) works inside
                     function tick() {
                         const el = document.getElementById(timerId);
                         if (!el) { clearInterval(tid); return; }
@@ -1231,12 +1233,12 @@ function renderPredictPage() {
                         const min = Math.floor((diff % 3600) / 60);
                         const sec = diff % 60;
                         el.textContent = h > 0
-                            ? `⏱ ${h}h ${min}m`
-                            : `⏱ ${String(min).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`;
+                            ? ('⏱ ' + h + 'h ' + min + 'm')
+                            : ('⏱ ' + String(min).padStart(2,'0') + 'm ' + String(sec).padStart(2,'0') + 's');
                         el.className = 'match-timer' + (h === 0 && min < 15 ? ' urgent' : '');
                     }
                     tick();
-                    const tid = setInterval(tick, 1000);
+                    tid = setInterval(tick, 1000);
                     _countdownTimers.push(tid);
                 }, 0);
             }

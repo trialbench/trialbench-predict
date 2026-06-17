@@ -133,24 +133,39 @@ body {
 
 /* ── STREAK BAR ── */
 .streak-bar {
-    margin: 16px 20px 0;
-    background: var(--glass);
-    border: 1px solid var(--border);
-    border-radius: 14px;
-    padding: 14px 18px;
-    display: flex; align-items: center; gap: 12px;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 20px;
+    display: flex; align-items: center; gap: 14px;
+    background: linear-gradient(135deg, rgba(245,158,11,0.07), rgba(245,158,11,0.02));
+    transition: background 0.3s;
 }
-.streak-fire { font-size: 26px; line-height: 1; }
-.streak-info { flex: 1; }
-.streak-count { font-size: 18px; font-weight: 900; color: #F59E0B; letter-spacing: -0.3px; }
-.streak-label { font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 1px; }
-.streak-pips { display: flex; gap: 5px; }
+.streak-bar.at-risk {
+    background: linear-gradient(135deg, rgba(239,68,68,0.08), rgba(239,68,68,0.02));
+    animation: streakBarPulse 2s ease-in-out infinite;
+}
+@keyframes streakBarPulse {
+    0%,100% { opacity:1; } 50% { opacity:0.7; }
+}
+.streak-fire { font-size: 24px; flex-shrink: 0; line-height: 1; }
+.streak-info { flex: 1; min-width: 0; }
+.streak-count { font-size: 15px; font-weight: 900; color: var(--warning); letter-spacing: -0.3px; line-height: 1; }
+.streak-bar.at-risk .streak-count { color: var(--danger); }
+.streak-label { font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 3px; }
+.streak-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.streak-milestone {
+    font-size: 10px; font-weight: 800; color: var(--text-muted);
+    letter-spacing: 0.3px; white-space: nowrap;
+}
+.streak-milestone .next-ms { color: #fff; }
+.streak-pips { display: flex; gap: 4px; }
 .streak-pip {
-    width: 26px; height: 5px; border-radius: 3px;
+    width: 18px; height: 4px; border-radius: 3px;
     background: rgba(255,255,255,0.07);
+    transition: background 0.3s;
 }
-.streak-pip.done { background: #F59E0B; }
-.streak-pip.today { background: var(--accent); }
+.streak-pip.done { background: var(--warning); }
+.streak-pip.done.at-risk { background: var(--danger); }
+.streak-pip.cap { background: rgba(34,197,94,0.4); }
 
 /* ── SECTION HEADER ── */
 .section-hdr {
@@ -346,7 +361,47 @@ body {
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .toast.error { border-color: rgba(239,68,68,0.3); color: var(--danger); }
 
-/* ── STREAK BONUS BANNER ── */
+/* ── MY SCORE SUMMARY ── */
+.myscore-summary {
+    background: linear-gradient(135deg, rgba(34,197,94,0.08), rgba(34,197,94,0.02));
+    border: 1px solid rgba(34,197,94,0.2); border-radius: 16px; padding: 18px 20px;
+}
+.myscore-summary-top {
+    display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;
+}
+.myscore-total { font-size: 36px; font-weight: 900; color: var(--accent); letter-spacing: -1px; line-height: 1; }
+.myscore-total-label { font-size: 11px; font-weight: 700; color: var(--text-muted); margin-top: 3px; }
+.myscore-rank { text-align: right; font-size: 13px; font-weight: 800; color: var(--gold); }
+.myscore-rank small { display: block; font-size: 10px; font-weight: 600; color: var(--text-muted); margin-bottom: 2px; }
+.myscore-breakdown { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.myscore-break-item {
+    background: rgba(255,255,255,0.03); border: 1px solid var(--border);
+    border-radius: 10px; padding: 10px 12px; text-align: center;
+}
+.myscore-break-val { font-size: 18px; font-weight: 900; }
+.myscore-break-lbl { font-size: 10px; font-weight: 700; color: var(--text-muted); margin-top: 2px; }
+
+/* ── MY SCORE STREAK CARD ── */
+.myscore-streak-card {
+    background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.03));
+    border: 1px solid rgba(245,158,11,0.2); border-radius: 14px;
+    padding: 14px 16px; display: flex; align-items: center; gap: 12px;
+}
+.myscore-streak-fire { font-size: 28px; }
+.myscore-streak-info { flex: 1; }
+.myscore-streak-count { font-size: 20px; font-weight: 900; color: var(--warning); letter-spacing: -0.5px; }
+.myscore-streak-label { font-size: 11px; font-weight: 600; color: var(--text-muted); margin-top: 1px; }
+.myscore-streak-milestones { display: flex; gap: 5px; margin-top: 8px; flex-wrap: wrap; }
+.ms-chip {
+    font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 99px;
+    border: 1px solid var(--border); color: var(--text-muted); background: rgba(255,255,255,0.03);
+}
+.ms-chip.reached { background: rgba(245,158,11,0.1); border-color: rgba(245,158,11,0.25); color: var(--warning); }
+.ms-chip.next    { background: rgba(255,255,255,0.05); border-color: rgba(255,255,255,0.12); color: #fff; }
+.myscore-streak-pts { text-align: right; }
+.myscore-streak-pts-val { font-size: 22px; font-weight: 900; color: var(--warning); }
+.myscore-streak-pts-lbl { font-size: 10px; font-weight: 700; color: var(--text-muted); margin-top: 2px; }
+
 .streak-bonus {
     margin: 12px 20px 0;
     background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.04));
@@ -411,17 +466,20 @@ body {
 
 <!-- STREAK BAR -->
 <div class="streak-bar" id="streakBar">
-    <div class="streak-fire" id="streakFire">🔥</div>
+    <div class="streak-fire" id="streakFire">⚡</div>
     <div class="streak-info">
-        <div class="streak-count" id="streakCount">—</div>
-        <div class="streak-label">Predict daily to keep your streak</div>
+        <div class="streak-count" id="streakCount">No streak yet</div>
+        <div class="streak-label" id="streakLabel">Submit a prediction to start your streak</div>
     </div>
-    <div class="streak-pips" id="streakPips"></div>
+    <div class="streak-right">
+        <div class="streak-milestone" id="streakMilestone"></div>
+        <div class="streak-pips" id="streakPips"></div>
+    </div>
 </div>
 
 <!-- STREAK BONUS BANNER -->
 <div class="streak-bonus hidden" id="streakBonusBanner">
-    🔥 3-day streak! You earned <strong style="margin:0 4px">+1 bonus point</strong> this matchday.
+    🔥 Streak milestone! You earned <strong style="margin:0 4px">a bonus point</strong> — keep it going!
 </div>
 
 <!-- PAGES -->
@@ -434,7 +492,7 @@ body {
     <div class="scoring-box">
         <div class="scoring-rule">Correct result <span>+1 pt</span></div>
         <div class="scoring-rule">Exact score <span>+3 pts</span></div>
-        <div class="scoring-rule">3-day streak <span>+1 pt</span></div>
+        <div class="scoring-rule">3-day streak <span>+1 pt (up to +5)</span></div>
     </div>
 
     <div class="section-hdr" id="openHdr" style="display:none">
@@ -446,18 +504,11 @@ body {
         <div class="loading-state"><div class="spinner"></div>Loading matches…</div>
     </div>
 
-    <div class="section-hdr" id="doneHdr" style="display:none">
-        <h2>Previous Results</h2>
-        <div class="line"></div>
-        <div class="badge badge-done">RESULTS</div>
-    </div>
-    <div id="doneMatches"></div>
-
 </div>
 
 <div class="page" id="page-standings">
     <div class="section-hdr" style="padding-top:24px">
-        <h2>Prediction Standings</h2>
+        <h2>Prediction Standing</h2>
         <div class="line"></div>
         <div class="badge badge-open">LIVE</div>
     </div>
@@ -466,16 +517,39 @@ body {
     </div>
 </div>
 
+<!-- MY SCORE PAGE -->
+<div class="page" id="page-myscore">
+
+    <!-- Summary card -->
+    <div id="myScoreSummary" style="margin:16px 20px 0;"></div>
+
+    <!-- Streak card -->
+    <div id="myScoreStreak" style="margin:12px 20px 0;"></div>
+
+    <!-- Match history -->
+    <div class="section-hdr" id="doneHdr" style="display:none; padding-top:20px;">
+        <h2>Match History</h2>
+        <div class="line"></div>
+        <div class="badge badge-done">RESULTS</div>
+    </div>
+    <div id="doneMatches"></div>
+
+</div>
+
 <!-- BOTTOM NAV -->
 <nav class="bottom-nav">
     <div class="nav-inner">
         <button class="nav-tab active" id="tab-predict" onclick="switchTab('predict')">
-            <span class="nav-icon">⚽</span>
-            <span class="nav-label">Predict</span>
+            <span class="nav-icon">🎯</span>
+            <span class="nav-label">My Picks</span>
         </button>
         <button class="nav-tab" id="tab-standings" onclick="switchTab('standings')">
             <span class="nav-icon">🏆</span>
-            <span class="nav-label">Standings</span>
+            <span class="nav-label">Standing</span>
+        </button>
+        <button class="nav-tab" id="tab-myscore" onclick="switchTab('myscore')">
+            <span class="nav-icon">📊</span>
+            <span class="nav-label">My Score</span>
         </button>
     </div>
 </nav>
@@ -739,8 +813,9 @@ function recordPredictionToday() {
     saveStreak(streak);
     renderStreak();
 
-    // Show streak bonus banner if hit 3
-    if (streak.count >= 3 && streak.count % 3 === 0) {
+    // Show streak bonus banner at each milestone
+    const STREAK_MILESTONES = [3, 6, 9, 12, 15];
+    if (STREAK_MILESTONES.includes(streak.count)) {
         document.getElementById('streakBonusBanner').classList.remove('hidden');
     }
 }
@@ -749,22 +824,73 @@ function renderStreak() {
     const { count, lastDate } = getStreak();
     const today = getTodayStr();
     const predictedToday = lastDate === today;
+    const atRisk = count > 0 && !predictedToday;
+    const bar = document.getElementById('streakBar');
+    const MILESTONES = [3, 6, 9, 12, 15];
 
-    document.getElementById('streakCount').textContent =
-        count === 0 ? 'No streak yet' :
-        count === 1 ? '1 day streak' :
-        `${count} day streak`;
+    // Icon
+    document.getElementById('streakFire').textContent =
+        count === 0 ? '💤' : count >= 3 ? '🔥' : '⚡';
 
-    document.getElementById('streakFire').textContent = count >= 3 ? '🔥' : count > 0 ? '⚡' : '💤';
+    // Title
+    const countEl = document.getElementById('streakCount');
+    if (count === 0) {
+        countEl.textContent = 'No streak yet';
+    } else if (atRisk) {
+        countEl.textContent = `${count} day streak at risk!`;
+    } else {
+        countEl.textContent = count === 1 ? '1 day streak' : `${count} day streak`;
+    }
 
+    // Label
+    const labelEl = document.getElementById('streakLabel');
+    if (count === 0) {
+        labelEl.textContent = 'Submit a prediction to start your streak';
+    } else if (atRisk) {
+        labelEl.textContent = '⚠️ No prediction yet today — submit before kickoff';
+    } else if (predictedToday) {
+        labelEl.textContent = count >= 15
+            ? '🏁 Max streak reached — bonus points capped!'
+            : 'Predicted today ✓ — keep it going tomorrow';
+    } else {
+        labelEl.textContent = 'Predict today to keep your streak going';
+    }
+
+    // At-risk state
+    if (atRisk) {
+        bar.classList.add('at-risk');
+    } else {
+        bar.classList.remove('at-risk');
+    }
+
+    // Milestone label — next target
+    const msEl = document.getElementById('streakMilestone');
+    if (msEl) {
+        const nextMs = MILESTONES.find(m => m > count);
+        if (count >= 15) {
+            msEl.innerHTML = '🏁 Max reached';
+        } else if (nextMs) {
+            const bonusPts = MILESTONES.indexOf(nextMs) + 1;
+            msEl.innerHTML = `Next: <span class="next-ms">${nextMs}d +${bonusPts}pt</span>`;
+        } else {
+            msEl.innerHTML = '';
+        }
+    }
+
+    // Pips — 15 total, milestone positions in green
     const pips = document.getElementById('streakPips');
     pips.innerHTML = '';
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 15; i++) {
         const pip = document.createElement('div');
         pip.className = 'streak-pip';
-        if (i < count && !predictedToday) pip.classList.add('done');
-        else if (i < count - 1) pip.classList.add('done');
-        else if (i === count - 1 && predictedToday) pip.classList.add('today');
+        const isMilestone = MILESTONES.includes(i + 1);
+        if (i < count) {
+            pip.classList.add('done');
+            if (atRisk) pip.classList.add('at-risk');
+        } else if (isMilestone) {
+            pip.classList.add('cap');
+            pip.style.opacity = '0.25';
+        }
         pips.appendChild(pip);
     }
 }
@@ -1215,6 +1341,94 @@ function switchTab(tab) {
     document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
     document.getElementById('page-' + tab).classList.add('active');
     document.getElementById('tab-' + tab).classList.add('active');
+    if (tab === 'myscore') renderMyScore();
+}
+
+function renderMyScore() {
+    const { count } = getStreak();
+    const MILESTONES = [3, 6, 9, 12, 15];
+    const localPreds = getLocalPredictions();
+
+    // Calculate points breakdown
+    let exactPts = 0, resultPts = 0;
+    const doneMathces = _matchesData ? _matchesData.filter(m => m.s1 !== null && m.s2 !== null && !isNaN(m.s1)) : [];
+    doneMathces.forEach(m => {
+        const uid = Object.keys(localPreds).find(k => {
+            const parts = k.split('_'); const teamPart = parts.slice(1).join('_');
+            const t1s = m.team1.replace(/[^a-zA-Z0-9]/g,'_');
+            const t2s = m.team2.replace(/[^a-zA-Z0-9]/g,'_');
+            return teamPart === t1s + '_' + t2s;
+        });
+        if (!uid) return;
+        const pred = localPreds[uid];
+        if (!pred || isNaN(pred.s1) || isNaN(pred.s2)) return;
+        if (pred.s1 === m.s1 && pred.s2 === m.s2) exactPts += 3;
+        else if (Math.sign(pred.s1 - pred.s2) === Math.sign(m.s1 - m.s2)) resultPts += 1;
+    });
+
+    // Streak bonus pts earned so far
+    const streakBonusPts = MILESTONES.filter(m => m <= count).reduce((acc, m, i) => acc + (i + 1), 0);
+    const cappedBonus = Math.min(streakBonusPts, 15);
+    const total = exactPts + resultPts + cappedBonus;
+
+    // Rank from standings
+    const myRow = document.querySelector('.pred-lb-row.me .pred-lb-pts');
+    const rank = myRow ? myRow.closest('.pred-lb-row') : null;
+
+    // ── Summary card ──
+    document.getElementById('myScoreSummary').innerHTML = `
+        <div class="myscore-summary">
+            <div class="myscore-summary-top">
+                <div>
+                    <div class="myscore-total">${total}</div>
+                    <div class="myscore-total-label">Prediction Points</div>
+                </div>
+                <div class="myscore-rank">
+                    <small>Your Rank</small>
+                    —
+                </div>
+            </div>
+            <div class="myscore-breakdown">
+                <div class="myscore-break-item">
+                    <div class="myscore-break-val" style="color:var(--accent)">${exactPts}</div>
+                    <div class="myscore-break-lbl">Exact Score</div>
+                </div>
+                <div class="myscore-break-item">
+                    <div class="myscore-break-val">${resultPts}</div>
+                    <div class="myscore-break-lbl">Correct Result</div>
+                </div>
+                <div class="myscore-break-item">
+                    <div class="myscore-break-val" style="color:var(--warning)">${cappedBonus}</div>
+                    <div class="myscore-break-lbl">Streak Bonus</div>
+                </div>
+            </div>
+        </div>`;
+
+    // ── Streak card ──
+    const nextMs = MILESTONES.find(m => m > count);
+    const milestonesHtml = MILESTONES.map((m, i) => {
+        const cls = m <= count ? 'reached' : m === nextMs ? 'next' : '';
+        const bonusPt = i + 1;
+        return `<span class="ms-chip ${cls}">${m <= count ? '✅' : m === nextMs ? '→' : ''} ${m}d +${bonusPt}</span>`;
+    }).join('');
+
+    document.getElementById('myScoreStreak').innerHTML = `
+        <div class="myscore-streak-card">
+            <div class="myscore-streak-fire">${count === 0 ? '💤' : count >= 3 ? '🔥' : '⚡'}</div>
+            <div class="myscore-streak-info">
+                <div class="myscore-streak-count">${count === 0 ? 'No streak' : count + ' day streak'}</div>
+                <div class="myscore-streak-label">${count >= 15 ? '🏁 Max streak reached' : nextMs ? `${nextMs - count} day${nextMs - count > 1 ? 's' : ''} to next milestone` : 'Keep predicting daily'}</div>
+                <div class="myscore-streak-milestones">${milestonesHtml}</div>
+            </div>
+            <div class="myscore-streak-pts">
+                <div class="myscore-streak-pts-val">+${cappedBonus}</div>
+                <div class="myscore-streak-pts-lbl">pts earned</div>
+            </div>
+        </div>`;
+
+    // ── Show match history header ──
+    const doneHdr = document.getElementById('doneHdr');
+    if (doneHdr && doneMathces.length > 0) doneHdr.style.display = '';
 }
 
 function showToast(msg, isError = false) {

@@ -409,36 +409,60 @@ let _selectedPlayer = null;
 
 async function init() {
     try {
-        const [rawMatches, rawPredictions] = await Promise.all([
+        const [rawSchedule, rawMatches, rawPredictions] = await Promise.all([
+            fetchSheet('Schedule'),
             fetchSheet('Matches'),
             fetchSheet('Predictions').catch(() => []),
         ]);
 
-        // All matches incl. unscored — keyed by numeric id only
-        const _allMatches = {};
-        rawMatches
+        // Schedule: A=#, B=Date, C=Group, D=Team1, E=Team2
+        // Used to resolve prediction MatchID (e.g. "6_Portugal_Congo_DR") → team names
+        const scheduleMap = {}; // scheduleId → {team1, team2}
+        rawSchedule
             .filter(r => r[0] && /^\d+$/.test(r[0].trim()))
-            .forEach(r => { _allMatches[r[0].trim()] = { id: r[0].trim(), team1: r[3], team2: r[4] }; });
+            .forEach(r => {
+                scheduleMap[r[0].trim()] = { team1: r[3], team2: r[4] };
+            });
 
-        _matches = rawMatches
+        // Matches (scored): keyed by "Team1|Team2" so we can look up via schedule teams
+        const matchByTeams = {}; // "team1|team2" → match result
+        rawMatches
             .filter(r => r[0] && /^\d+$/.test(r[0].trim()) && r[5] !== '' && r[6] !== '')
-            .map(r => ({ id: r[0].trim(), date: r[1], grp: r[2], team1: r[3], team2: r[4], s1: parseInt(r[5]), s2: parseInt(r[6]) }));
+            .forEach(r => {
+                const key = `${r[3].trim()}|${r[4].trim()}`;
+                matchByTeams[key] = { id: r[0].trim(), team1: r[3], team2: r[4], s1: parseInt(r[5]), s2: parseInt(r[6]) };
+            });
+
+        _matches = Object.values(matchByTeams);
 
         _predictions = rawPredictions
-            .filter(r => r[0] && r[2])
-            .map(r => ({
-                playerId:   r[0],
-                playerName: r[1],
-                // matchId in sheet may be "6_Portugal_Congo_DR" — extract numeric prefix only
-                matchId:    String(r[2]).trim().split('_')[0],
-                date:       r[3],
-                s1: parseInt(r[4]),
-                s2: parseInt(r[5])
-            }));
+            .filter(r => r[0] && r[2] && String(r[0]).toLowerCase() !== 'playerid')
+            .map(r => {
+                // Extract numeric schedule ID from matchId like "6_Portugal_Congo_DR"
+                const scheduleId = String(r[2]).trim().split('_')[0];
+                const sched = scheduleMap[scheduleId] || {};
+                return {
+                    playerId:   String(r[0]).trim().toLowerCase(),
+                    playerName: r[1],
+                    matchId:    String(r[2]).trim(),
+                    scheduleId,
+                    team1:      sched.team1 || '',
+                    team2:      sched.team2 || '',
+                    date:       r[3],
+                    s1: parseInt(r[4]),
+                    s2: parseInt(r[5])
+                };
+            });
+
+        // Build allMatches for label display keyed by scheduleId
+        const _allMatches = {};
+        Object.keys(scheduleMap).forEach(id => {
+            _allMatches[id] = scheduleMap[id];
+        });
 
         renderStats();
         renderPlayerLinks();
-        renderPredTable(_allMatches);
+        renderPredTable(_allMatches, matchByTeams);
 
     } catch(e) {
         document.getElementById('playerLinks').innerHTML =
@@ -506,7 +530,7 @@ function renderPlayerLinks() {
     }).join('');
 }
 
-function renderPredTable(allMatches = {}) {
+function renderPredTable(allMatches = {}, matchByTeams = {}) {
     const tbody = document.getElementById('predTableBody');
 
     if (_predictions.length === 0) {
@@ -514,12 +538,10 @@ function renderPredTable(allMatches = {}) {
         return;
     }
 
-    const matchMap = {};
-    _matches.forEach(m => { matchMap[m.id] = m; });
-
     const rows = _predictions.map(p => {
-        const match    = matchMap[p.matchId];
-        const anyMatch = allMatches[p.matchId];
+        // Look up actual result by team names (bridges the ID mismatch)
+        const matchKey = `${p.team1}|${p.team2}`;
+        const match = matchByTeams[matchKey];
         let pts = null, resultLabel = '—', resultColor = 'var(--text-muted)';
 
         if (match && !isNaN(p.s1) && !isNaN(p.s2)) {
@@ -534,7 +556,8 @@ function renderPredTable(allMatches = {}) {
 
         const player     = PLAYERS.find(pl => pl.id === p.playerId);
         const flag       = player ? player.flag : '🏴';
-        const matchLabel = anyMatch ? `${anyMatch.team1} v ${anyMatch.team2}` : `Match #${p.matchId}`;
+        const sched      = allMatches[p.scheduleId];
+        const matchLabel = sched ? `${sched.team1} v ${sched.team2}` : p.matchId;
 
         return `
         <tr>

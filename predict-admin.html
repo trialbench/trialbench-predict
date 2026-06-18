@@ -414,7 +414,7 @@ async function init() {
             fetchSheet('Predictions').catch(() => []),
         ]);
 
-        // All matches (for label lookup, including unscored)
+        // All matches incl. unscored — keyed by numeric id only
         const _allMatches = {};
         rawMatches
             .filter(r => r[0] && /^\d+$/.test(r[0].trim()))
@@ -426,7 +426,15 @@ async function init() {
 
         _predictions = rawPredictions
             .filter(r => r[0] && r[2])
-            .map(r => ({ playerId: r[0], playerName: r[1], matchId: r[2], date: r[3], s1: parseInt(r[4]), s2: parseInt(r[5]) }));
+            .map(r => ({
+                playerId:   r[0],
+                playerName: r[1],
+                // matchId in sheet may be "6_Portugal_Congo_DR" — extract numeric prefix only
+                matchId:    String(r[2]).trim().split('_')[0],
+                date:       r[3],
+                s1: parseInt(r[4]),
+                s2: parseInt(r[5])
+            }));
 
         renderStats();
         renderPlayerLinks();

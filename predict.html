@@ -1115,10 +1115,19 @@ function renderPredictPage() {
     _countdownTimers.forEach(clearInterval);
     _countdownTimers = [];
 
-    // Today's matches
+    // Today's matches — exclude any that already have a final score entered
     const todayMatches = _scheduleData.filter(m => {
         const d = parseSheetDate(m.date);
-        return d && toMidnight(d).getTime() === todayMid.getTime();
+        if (!d || toMidnight(d).getTime() !== todayMid.getTime()) return false;
+        // Exclude if score already entered in Matches sheet
+        const t1s = m.team1.replace(/[^a-zA-Z0-9]/g, '_');
+        const t2s = m.team2.replace(/[^a-zA-Z0-9]/g, '_');
+        const liveMatch = _matchesData.find(r =>
+            r.team1.replace(/[^a-zA-Z0-9]/g, '_') === t1s &&
+            r.team2.replace(/[^a-zA-Z0-9]/g, '_') === t2s
+        );
+        const hasScore = liveMatch && !isNaN(liveMatch.s1) && liveMatch.s1 !== null;
+        return !hasScore;
     }).map(m => ({
         ...m,
         uid: (m.id + '_' + m.team1 + '_' + m.team2).replace(/[^a-zA-Z0-9]/g, '_'),

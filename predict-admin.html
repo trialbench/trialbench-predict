@@ -409,60 +409,31 @@ let _selectedPlayer = null;
 
 async function init() {
     try {
-        const [rawSchedule, rawMatches, rawPredictions] = await Promise.all([
-            fetchSheet('Schedule'),
+        const [rawMatches, rawPredictions] = await Promise.all([
             fetchSheet('Matches'),
             fetchSheet('Predictions').catch(() => []),
         ]);
 
-        // Schedule: A=#, B=Date, C=Group, D=Team1, E=Team2
-        // Used to resolve prediction MatchID (e.g. "6_Portugal_Congo_DR") → team names
-        const scheduleMap = {}; // scheduleId → {team1, team2}
-        rawSchedule
-            .filter(r => r[0] && /^\d+$/.test(r[0].trim()))
-            .forEach(r => {
-                scheduleMap[r[0].trim()] = { team1: r[3], team2: r[4] };
-            });
-
-        // Matches (scored): keyed by "Team1|Team2" so we can look up via schedule teams
-        const matchByTeams = {}; // "team1|team2" → match result
-        rawMatches
+        // Matches (scored only) — same as predict.html _matchesData
+        _matches = rawMatches
             .filter(r => r[0] && /^\d+$/.test(r[0].trim()) && r[5] !== '' && r[6] !== '')
-            .forEach(r => {
-                const key = `${r[3].trim()}|${r[4].trim()}`;
-                matchByTeams[key] = { id: r[0].trim(), team1: r[3], team2: r[4], s1: parseInt(r[5]), s2: parseInt(r[6]) };
-            });
+            .map(r => ({ id: r[0].trim(), date: r[1], grp: r[2], team1: r[3], team2: r[4], s1: parseInt(r[5]), s2: parseInt(r[6]) }));
 
-        _matches = Object.values(matchByTeams);
-
+        // Predictions — same as predict.html _predictionsData
         _predictions = rawPredictions
-            .filter(r => r[0] && r[2] && String(r[0]).toLowerCase() !== 'playerid')
-            .map(r => {
-                // Extract numeric schedule ID from matchId like "6_Portugal_Congo_DR"
-                const scheduleId = String(r[2]).trim().split('_')[0];
-                const sched = scheduleMap[scheduleId] || {};
-                return {
-                    playerId:   String(r[0]).trim().toLowerCase(),
-                    playerName: r[1],
-                    matchId:    String(r[2]).trim(),
-                    scheduleId,
-                    team1:      sched.team1 || '',
-                    team2:      sched.team2 || '',
-                    date:       r[3],
-                    s1: parseInt(r[4]),
-                    s2: parseInt(r[5])
-                };
-            });
-
-        // Build allMatches for label display keyed by scheduleId
-        const _allMatches = {};
-        Object.keys(scheduleMap).forEach(id => {
-            _allMatches[id] = scheduleMap[id];
-        });
+            .filter(r => r[0] && r[2] && String(r[0]).trim().toLowerCase() !== 'playerid')
+            .map(r => ({
+                playerId:   String(r[0]).trim().toLowerCase(),
+                playerName: r[1],
+                matchId:    String(r[2]).trim(),
+                date:       r[3],
+                s1: parseInt(r[4]),
+                s2: parseInt(r[5])
+            }));
 
         renderStats();
         renderPlayerLinks();
-        renderPredTable(_allMatches, matchByTeams);
+        renderPredTable();
 
     } catch(e) {
         document.getElementById('playerLinks').innerHTML =
@@ -530,7 +501,7 @@ function renderPlayerLinks() {
     }).join('');
 }
 
-function renderPredTable(allMatches = {}, matchByTeams = {}) {
+function renderPredTable() {
     const tbody = document.getElementById('predTableBody');
 
     if (_predictions.length === 0) {
@@ -538,26 +509,53 @@ function renderPredTable(allMatches = {}, matchByTeams = {}) {
         return;
     }
 
-    const rows = _predictions.map(p => {
-        // Look up actual result by team names (bridges the ID mismatch)
-        const matchKey = `${p.team1}|${p.team2}`;
-        const match = matchByTeams[matchKey];
-        let pts = null, resultLabel = '—', resultColor = 'var(--text-muted)';
-
-        if (match && !isNaN(p.s1) && !isNaN(p.s2)) {
+    // Build result lookup per prediction using IDENTICAL logic to predict.html calcPlayerPts:
+    // For each scored match, sanitise team names, then find predictions where
+    // matchId.split('_').slice(1).join('_') === t1s + '_' + t2s
+    const resultMap = {}; // matchId → { pts, resultLabel, resultColor, match }
+    _matches.forEach(function(match) {
+        const t1s = match.team1.replace(/[^a-zA-Z0-9]/g, '_');
+        const t2s = match.team2.replace(/[^a-zA-Z0-9]/g, '_');
+        const matchTeamPart = t1s + '_' + t2s;
+        _predictions.forEach(function(p) {
+            const parts = p.matchId.split('_');
+            const teamPart = parts.slice(1).join('_');
+            if (teamPart !== matchTeamPart) return;
+            if (isNaN(p.s1) || isNaN(p.s2)) return;
             const exact  = p.s1 === match.s1 && p.s2 === match.s2;
             const result = Math.sign(p.s1 - p.s2) === Math.sign(match.s1 - match.s2);
-            if (exact)        { pts = 3; resultLabel = '🎯 Exact';   resultColor = 'var(--accent)'; }
-            else if (result)  { pts = 1; resultLabel = '✅ Result';  resultColor = 'var(--warning)'; }
-            else              { pts = 0; resultLabel = '❌ Wrong';   resultColor = 'var(--danger)'; }
+            let pts, resultLabel, resultColor;
+            if (exact)        { pts = 3; resultLabel = '🎯 Exact';  resultColor = 'var(--accent)'; }
+            else if (result)  { pts = 1; resultLabel = '✅ Result'; resultColor = 'var(--warning)'; }
+            else              { pts = 0; resultLabel = '❌ Wrong';  resultColor = 'var(--danger)'; }
+            // key = playerId + matchId so each player's prediction is distinct
+            resultMap[p.playerId + '|' + p.matchId] = { pts, resultLabel, resultColor, match };
+        });
+    });
+
+    const rows = _predictions.map(p => {
+        const key = p.playerId + '|' + p.matchId;
+        const res = resultMap[key];
+
+        // Match label: team1 v team2 decoded from matchId (same sanitisation, reversed)
+        const parts = p.matchId.split('_');
+        const matchLabel = parts.length >= 3
+            ? parts.slice(1).join(' ').replace(/_/g, ' ')  // rough decode for display
+            : `Match #${p.matchId}`;
+
+        let resultLabel, resultColor, ptsCell;
+        if (res) {
+            resultLabel = res.resultLabel;
+            resultColor = res.resultColor;
+            ptsCell = `<span class="pred-pts ${res.pts === 0 ? 'zero' : ''}">${res.pts > 0 ? '+' + res.pts : '0'} pt${res.pts !== 1 ? 's' : ''}</span>`;
         } else {
             resultLabel = '<span style="color:var(--warning);font-weight:700">⏳ Pending</span>';
+            resultColor = 'var(--text-muted)';
+            ptsCell = '<span style="color:var(--text-muted)">—</span>';
         }
 
-        const player     = PLAYERS.find(pl => pl.id === p.playerId);
-        const flag       = player ? player.flag : '🏴';
-        const sched      = allMatches[p.scheduleId];
-        const matchLabel = sched ? `${sched.team1} v ${sched.team2}` : p.matchId;
+        const player = PLAYERS.find(pl => pl.id === p.playerId);
+        const flag   = player ? player.flag : '🏴';
 
         return `
         <tr>
@@ -565,10 +563,7 @@ function renderPredTable(allMatches = {}, matchByTeams = {}) {
             <td>${matchLabel}</td>
             <td style="color:#fff;font-weight:800">${isNaN(p.s1) ? '—' : `${p.s1}–${p.s2}`}</td>
             <td style="color:${resultColor};font-weight:700">${resultLabel}</td>
-            <td>${pts !== null
-                ? `<span class="pred-pts ${pts === 0 ? 'zero' : ''}">${pts > 0 ? '+' + pts : '0'} pt${pts !== 1 ? 's' : ''}</span>`
-                : '<span style="color:var(--text-muted)">—</span>'
-            }</td>
+            <td>${ptsCell}</td>
         </tr>`;
     });
 

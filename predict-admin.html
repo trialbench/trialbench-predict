@@ -414,9 +414,15 @@ async function init() {
             fetchSheet('Predictions').catch(() => []),
         ]);
 
+        // All matches (for label lookup, including unscored)
+        const _allMatches = {};
+        rawMatches
+            .filter(r => r[0] && /^\d+$/.test(r[0].trim()))
+            .forEach(r => { _allMatches[r[0].trim()] = { id: r[0].trim(), team1: r[3], team2: r[4] }; });
+
         _matches = rawMatches
             .filter(r => r[0] && /^\d+$/.test(r[0].trim()) && r[5] !== '' && r[6] !== '')
-            .map(r => ({ id: r[0], date: r[1], grp: r[2], team1: r[3], team2: r[4], s1: parseInt(r[5]), s2: parseInt(r[6]) }));
+            .map(r => ({ id: r[0].trim(), date: r[1], grp: r[2], team1: r[3], team2: r[4], s1: parseInt(r[5]), s2: parseInt(r[6]) }));
 
         _predictions = rawPredictions
             .filter(r => r[0] && r[2])
@@ -424,7 +430,7 @@ async function init() {
 
         renderStats();
         renderPlayerLinks();
-        renderPredTable();
+        renderPredTable(_allMatches);
 
     } catch(e) {
         document.getElementById('playerLinks').innerHTML =
@@ -434,7 +440,10 @@ async function init() {
 }
 
 function getTodayStr() {
-    return new Date().toISOString().slice(0,10);
+    const now = new Date();
+    const dd  = String(now.getDate()).padStart(2, '0');
+    const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][now.getMonth()];
+    return `${dd}-${mon}`;
 }
 
 function renderStats() {
@@ -489,7 +498,7 @@ function renderPlayerLinks() {
     }).join('');
 }
 
-function renderPredTable() {
+function renderPredTable(allMatches = {}) {
     const tbody = document.getElementById('predTableBody');
 
     if (_predictions.length === 0) {
@@ -497,13 +506,12 @@ function renderPredTable() {
         return;
     }
 
-    // Build match result lookup
     const matchMap = {};
     _matches.forEach(m => { matchMap[m.id] = m; });
 
-    // Calculate points per prediction
     const rows = _predictions.map(p => {
-        const match = matchMap[p.matchId];
+        const match    = matchMap[p.matchId];
+        const anyMatch = allMatches[p.matchId];
         let pts = null, resultLabel = '—', resultColor = 'var(--text-muted)';
 
         if (match && !isNaN(p.s1) && !isNaN(p.s2)) {
@@ -512,13 +520,13 @@ function renderPredTable() {
             if (exact)        { pts = 3; resultLabel = '🎯 Exact';   resultColor = 'var(--accent)'; }
             else if (result)  { pts = 1; resultLabel = '✅ Result';  resultColor = 'var(--warning)'; }
             else              { pts = 0; resultLabel = '❌ Wrong';   resultColor = 'var(--danger)'; }
-        } else if (!match) {
-            resultLabel = '⏳ Pending';
+        } else {
+            resultLabel = '<span style="color:var(--warning);font-weight:700">⏳ Pending</span>';
         }
 
-        const player = PLAYERS.find(pl => pl.id === p.playerId);
-        const flag   = player ? player.flag : '🏴';
-        const matchLabel = match ? `${match.team1} v ${match.team2}` : `Match #${p.matchId}`;
+        const player     = PLAYERS.find(pl => pl.id === p.playerId);
+        const flag       = player ? player.flag : '🏴';
+        const matchLabel = anyMatch ? `${anyMatch.team1} v ${anyMatch.team2}` : `Match #${p.matchId}`;
 
         return `
         <tr>
@@ -547,7 +555,7 @@ function selectPlayer(playerId) {
 function updateWaTemplate(player) {
     const link = `${BASE_URL}?player=${player.id}`;
     const pin  = PLAYER_PINS_ADMIN[player.id] || '????';
-    const msg = `⚽ *Trial Bench Cup — Predictions*\n\nHey ${player.name.split(' ')[0]}! 👋\n\nHere's your personal prediction link:\n${link}\n\n🔐 Your PIN: *${pin}*\n\nBookmark the link — you'll only need to enter your PIN once. Predict before each match kicks off to earn bonus points!\n\n🏆 Good luck!`;
+    const msg = `⚽ *Trial Bench Cup — Predictions*\n\nHey ${player.name.split(' ')[0]}! 👋\n\nHere's your personal prediction link:\n${link}\n\n🔐 Your PIN: *${pin}*\n\nBookmark the link and predict before each match kicks off to earn bonus points!\n\n🏆 Good luck!`;
     document.getElementById('waTemplate').textContent = msg;
 }
 
@@ -571,7 +579,7 @@ function openWhatsApp(e, playerId) {
     selectPlayer(playerId);
     const link = `${BASE_URL}?player=${player.id}`;
     const pin  = PLAYER_PINS_ADMIN[player.id] || '????';
-    const msg = `⚽ Trial Bench Cup — Predictions\n\nHey ${player.name.split(' ')[0]}! 👋\n\nHere's your personal prediction link:\n${link}\n\nYour PIN: ${pin}\n\nBookmark the link — enter your PIN once, then it's yours forever. Predict before kickoff every day!\n\n🏆 Good luck!`;
+    const msg = `⚽ Trial Bench Cup — Predictions\n\nHey ${player.name.split(' ')[0]}! 👋\n\nHere's your personal prediction link:\n${link}\n\nYour PIN: ${pin}\n\nBookmark the link and predict before kickoff every day!\n\n🏆 Good luck!`;
     window.open(`https://wa.me/?text=${encodeURIComponent(msg)}`, '_blank');
 }
 

@@ -110,7 +110,10 @@ body {
     padding: 24px 20px 20px;
     display: flex; align-items: center; gap: 14px;
 }
-.player-avatar {
+.pred-picks-flag { font-size: 28px; line-height: 1; margin-left: auto; }
+.myscore-player-row { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.myscore-player-flag { font-size: 28px; line-height: 1; }
+.myscore-player-name { font-size: 16px; font-weight: 800; color: var(--text); letter-spacing: -0.3px; }
     width: 52px; height: 52px; border-radius: 50%;
     background: rgba(34,197,94,0.08);
     border: 1.5px solid rgba(34,197,94,0.2);
@@ -571,6 +574,10 @@ body {
     <div class="section-hdr">
         <h2>How it works</h2>
         <div class="line"></div>
+        <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
+            <span style="font-size:22px;line-height:1" id="picksFlag"></span>
+            <span style="font-size:12px;font-weight:700;color:var(--text-muted)" id="picksCountry"></span>
+        </div>
     </div>
     <div class="scoring-box">
         <div class="scoring-rule">Correct result <span>+1 pt</span></div>
@@ -849,6 +856,10 @@ function onAuthenticated() {
     // Render header
     document.getElementById('hdrFlag').textContent = playerData.flag;
     document.getElementById('hdrName').textContent = playerData.name;
+    const pf = document.getElementById('picksFlag');
+    if (pf) pf.textContent = playerData.flag;
+    const pc = document.getElementById('picksCountry');
+    if (pc) pc.textContent = playerData.country;
 
     // Show bookmark banner on first ever visit
     const isFirstVisit = !localStorage.getItem(BM_KEY);
@@ -1284,9 +1295,9 @@ function renderPredictPage() {
             return '<div class="match-card' + (isPredicted && !hasScore ? ' predicted' : '') + (before1pm ? ' locked-1pm' : '') + cardResultClass + '" id="mc-' + m.uid + '">'
                 + '<div class="match-meta"><span class="match-grp">' + grpLabel + '</span>' + timerHTML + '</div>'
                 + '<div class="match-body">'
-                + '<div class="match-team"><div class="match-flag">' + teamFlag(m.team1) + '</div><div class="match-name">' + m.team1 + '</div></div>'
+                + '<div class="match-team"><div class="match-flag">' + teamFlag(m.team1) + '</div><div class="match-name">' + teamFlag(m.team1) + ' ' + m.team1 + '</div></div>'
                 + centreHTML
-                + '<div class="match-team"><div class="match-flag">' + teamFlag(m.team2) + '</div><div class="match-name">' + m.team2 + '</div></div>'
+                + '<div class="match-team"><div class="match-flag">' + teamFlag(m.team2) + '</div><div class="match-name">' + teamFlag(m.team2) + ' ' + m.team2 + '</div></div>'
                 + '</div>' + footerHTML + '</div>';
         }
 
@@ -1345,7 +1356,7 @@ function renderPredictPage() {
                 <div class="match-body">
                     <div class="match-team">
                         <div class="match-flag">${teamFlag(m.team1)}</div>
-                        <div class="match-name">${m.team1}</div>
+                        <div class="match-name">${teamFlag(m.team1)} ${m.team1}</div>
                     </div>
                     <div style="text-align:center">
                         <div style="font-size:26px;font-weight:900;letter-spacing:-1px">${m.s1} – ${m.s2}</div>
@@ -1353,7 +1364,7 @@ function renderPredictPage() {
                     </div>
                     <div class="match-team">
                         <div class="match-flag">${teamFlag(m.team2)}</div>
-                        <div class="match-name">${m.team2}</div>
+                        <div class="match-name">${teamFlag(m.team2)} ${m.team2}</div>
                     </div>
                 </div>
                 <div class="result-reveal">
@@ -1603,10 +1614,43 @@ function clamp(input) {
     else if (v > 20) input.value = 20;
 }
 
+const TEAM_FLAGS = {
+    'Afghanistan': '🇦🇫', 'Albania': '🇦🇱', 'Algeria': '🇩🇿', 'Andorra': '🇦🇩',
+    'Angola': '🇦🇴', 'Argentina': '🇦🇷', 'Armenia': '🇦🇲', 'Australia': '🇦🇺',
+    'Austria': '🇦🇹', 'Azerbaijan': '🇦🇿', 'Bahrain': '🇧🇭', 'Bangladesh': '🇧🇩',
+    'Belgium': '🇧🇪', 'Bolivia': '🇧🇴', 'Bosnia and Herzegovina': '🇧🇦',
+    'Bosnia & Herzegovina': '🇧🇦', 'Brazil': '🇧🇷', 'Bulgaria': '🇧🇬',
+    'Cameroon': '🇨🇲', 'Canada': '🇨🇦', 'Chile': '🇨🇱', 'China': '🇨🇳',
+    'China PR': '🇨🇳', 'Colombia': '🇨🇴', 'Congo': '🇨🇬', 'Congo DR': '🇨🇩',
+    'Costa Rica': '🇨🇷', "Côte d'Ivoire": '🇨🇮', "Cote d'Ivoire": '🇨🇮',
+    'Croatia': '🇭🇷', 'Cuba': '🇨🇺', 'Czechia': '🇨🇿', 'Czech Republic': '🇨🇿',
+    'Denmark': '🇩🇰', 'Ecuador': '🇪🇨', 'Egypt': '🇪🇬', 'El Salvador': '🇸🇻',
+    'England': '🏴󠁧󠁢󠁥󠁮󠁧󠁿', 'Ethiopia': '🇪🇹', 'Finland': '🇫🇮', 'France': '🇫🇷',
+    'Germany': '🇩🇪', 'Ghana': '🇬🇭', 'Greece': '🇬🇷', 'Guatemala': '🇬🇹',
+    'Haiti': '🇭🇹', 'Honduras': '🇭🇳', 'Hungary': '🇭🇺', 'Iceland': '🇮🇸',
+    'India': '🇮🇳', 'Indonesia': '🇮🇩', 'Iran': '🇮🇷', 'IR Iran': '🇮🇷',
+    'Iraq': '🇮🇶', 'Ireland': '🇮🇪', 'Israel': '🇮🇱', 'Italy': '🇮🇹',
+    'Jamaica': '🇯🇲', 'Japan': '🇯🇵', 'Jordan': '🇯🇴', 'Kazakhstan': '🇰🇿',
+    'Kenya': '🇰🇪', 'Korea DPR': '🇰🇵', 'Korea Republic': '🇰🇷', 'Kuwait': '🇰🇼',
+    'Kyrgyzstan': '🇰🇬', 'Lebanon': '🇱🇧', 'Libya': '🇱🇾', 'Mali': '🇲🇱',
+    'Mexico': '🇲🇽', 'Moldova': '🇲🇩', 'Morocco': '🇲🇦', 'Mozambique': '🇲🇿',
+    'Netherlands': '🇳🇱', 'New Zealand': '🇳🇿', 'Nigeria': '🇳🇬', 'Norway': '🇳🇴',
+    'Oman': '🇴🇲', 'Pakistan': '🇵🇰', 'Palestine': '🇵🇸', 'Panama': '🇵🇦',
+    'Paraguay': '🇵🇾', 'Peru': '🇵🇪', 'Philippines': '🇵🇭', 'Poland': '🇵🇱',
+    'Portugal': '🇵🇹', 'Qatar': '🇶🇦', 'Romania': '🇷🇴', 'Russia': '🇷🇺',
+    'Saudi Arabia': '🇸🇦', 'Scotland': '🏴󠁧󠁢󠁳󠁣󠁴󠁿', 'Senegal': '🇸🇳', 'Serbia': '🇷🇸',
+    'Slovakia': '🇸🇰', 'Slovenia': '🇸🇮', 'South Africa': '🇿🇦', 'South Korea': '🇰🇷',
+    'Spain': '🇪🇸', 'Sweden': '🇸🇪', 'Switzerland': '🇨🇭', 'Syria': '🇸🇾',
+    'Tajikistan': '🇹🇯', 'Thailand': '🇹🇭', 'Trinidad and Tobago': '🇹🇹',
+    'Tunisia': '🇹🇳', 'Turkey': '🇹🇷', 'Türkiye': '🇹🇷', 'Uganda': '🇺🇬',
+    'Ukraine': '🇺🇦', 'United Arab Emirates': '🇦🇪', 'UAE': '🇦🇪',
+    'United States': '🇺🇸', 'USA': '🇺🇸', 'Uruguay': '🇺🇾', 'Uzbekistan': '🇺🇿',
+    'Venezuela': '🇻🇪', 'Vietnam': '🇻🇳', 'Wales': '🏴󠁧󠁢󠁷󠁬󠁳󠁿', 'Zambia': '🇿🇲',
+    'Zimbabwe': '🇿🇼', 'Cabo Verde': '🇨🇻', 'Curaçao': '🇨🇼',
+};
+
 function teamFlag(country) {
-    // Returns flag emoji if it looks like one, else shows country initial
-    // In practice your sheet has team names, not flags — adjust as needed
-    return country || '🏴';
+    return TEAM_FLAGS[country] || '🏳️';
 }
 
 function switchTab(tab) {
@@ -1657,6 +1701,10 @@ function renderMyScore() {
     // ── Summary card ──
     document.getElementById('myScoreSummary').innerHTML = `
         <div class="myscore-summary">
+            <div class="myscore-player-row">
+                <span class="myscore-player-flag">${playerData.flag}</span>
+                <span class="myscore-player-name">${playerData.country}</span>
+            </div>
             <div class="myscore-summary-top">
                 <div>
                     <div class="myscore-total">${total}</div>

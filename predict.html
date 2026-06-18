@@ -1389,6 +1389,39 @@ function calcPlayerPts() {
     return playerPts;
 }
 
+// ── Derive streak for any player from sheet prediction dates ──
+function calcStreakFromPredictions(pid) {
+    // Collect unique calendar dates this player submitted a prediction
+    const dateSeen = new Set();
+    _predictionsData.forEach(function(p) {
+        if (p.playerId !== pid) return;
+        // date field is "DD-Mon" (e.g. "18-Jun") — convert to YYYY-MM-DD
+        if (!p.date) return;
+        var parts = p.date.trim().split('-');
+        if (parts.length < 2) return;
+        var day = parseInt(parts[0]);
+        var mon = MONTHS[parts[1]];
+        if (isNaN(day) || mon === undefined) return;
+        var year = new Date().getFullYear();
+        var d = new Date(year, mon, day);
+        dateSeen.add(d.toISOString().slice(0, 10));
+    });
+
+    if (dateSeen.size === 0) return 0;
+
+    // Walk backwards from today counting consecutive days
+    var count = 0;
+    var cursor = new Date();
+    cursor.setHours(0, 0, 0, 0);
+    while (true) {
+        var key = cursor.toISOString().slice(0, 10);
+        if (!dateSeen.has(key)) break;
+        count++;
+        cursor.setDate(cursor.getDate() - 1);
+    }
+    return count;
+}
+
 // ── Render standings ──
 function renderStandings() {
     const container = document.getElementById('predStandings');
@@ -1416,19 +1449,20 @@ function renderStandings() {
         });
     });
 
-    // Build rows
-    const { count: myStreakCount } = getStreak();
-    const myCapped = Math.min(myStreakCount, 15);
-    const myStreakBonus = MILESTONES.filter(m => m <= myCapped).reduce((acc, m, i) => acc + (i + 1), 0);
-
+    // Build rows — derive streak from sheet data for every player
+    const { count: myStreakCount } = getStreak(); // still used for the streak bar UI
     const rows = PLAYERS.map(p => {
         const exact  = playerExact[p.id]  || 0;
         const result = playerResult[p.id] || 0;
-        const streakBonus = p.id === playerId ? myStreakBonus : 0;
+        // For current player prefer localStorage streak (updated instantly on submit);
+        // for all others derive from sheet prediction dates
+        const streakCount = p.id === playerId
+            ? myStreakCount
+            : calcStreakFromPredictions(p.id);
+        const capped = Math.min(streakCount, 15);
+        const streakBonus = MILESTONES.filter(m => m <= capped).reduce((acc, m, i) => acc + (i + 1), 0);
         const pts = exact * 3 + result * 1 + streakBonus;
-        // Streak display — only known for current player
-        const streakDisplay = p.id === playerId ? myStreakCount : null;
-        return { ...p, pts, exact, result, streakBonus, streakDisplay };
+        return { ...p, pts, exact, result, streakBonus, streakCount };
     }).sort((a, b) => b.pts - a.pts);
 
     if (rows.length === 0) {
@@ -1441,15 +1475,15 @@ function renderStandings() {
     container.innerHTML = rows.map((p, i) => {
         const isMe = p.id === playerId;
         const rankDisp = i < 3 ? rankEmojis[i] : (i + 1);
-        const streakDisp = p.streakDisplay !== null
-            ? `<div class="pred-lb-streak">🔥 ${p.streakDisplay}d</div>`
+        const streakDisp = p.streakCount > 0
+            ? `<div class="pred-lb-streak">🔥 ${p.streakCount}d</div>`
             : '';
 
         // Breakdown rows
         const bdExact  = `<div class="pred-lb-bd-row"><span>Exact scores &nbsp;<span style="color:#fff;font-weight:700">${p.exact} × 3</span></span><span class="pred-lb-bd-val">= ${p.exact * 3} pts</span></div>`;
         const bdResult = `<div class="pred-lb-bd-row"><span>Correct results &nbsp;<span style="color:#fff;font-weight:700">${p.result} × 1</span></span><span class="pred-lb-bd-val">= ${p.result} pts</span></div>`;
-        const bdStreak = isMe
-            ? `<div class="pred-lb-bd-row"><span>Streak bonus (${p.streakDisplay}d)</span><span class="pred-lb-bd-val" style="color:var(--warning)">+${p.streakBonus} pts</span></div>`
+        const bdStreak = p.streakBonus > 0
+            ? `<div class="pred-lb-bd-row"><span>Streak bonus (${p.streakCount}d)</span><span class="pred-lb-bd-val" style="color:var(--warning)">+${p.streakBonus} pts</span></div>`
             : '';
 
         return `<div class="pred-lb-row ${isMe ? 'me' : ''}" onclick="toggleLbBreakdown(this)">

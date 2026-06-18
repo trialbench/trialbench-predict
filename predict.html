@@ -1292,19 +1292,25 @@ function renderPredictPage() {
     const doneHdr = document.getElementById('doneHdr');
     const doneContainer = document.getElementById('doneMatches');
 
-    // Completed matches not from today
+    // Today's completed matches (score entered) + past matches, most recent first
+    const todayCompleted = _matchesData.filter(m => {
+        const d = parseSheetDate(m.date);
+        return d && toMidnight(d).getTime() === todayMid.getTime()
+            && !isNaN(m.s1) && m.s1 !== null && !isNaN(m.s2) && m.s2 !== null;
+    });
     const pastMatches = _matchesData.filter(m => {
         const d = parseSheetDate(m.date);
-        return d && toMidnight(d).getTime() < todayMid.getTime();
-    }).slice(-6); // last 6
+        return d && toMidnight(d).getTime() < todayMid.getTime()
+            && !isNaN(m.s1) && m.s1 !== null;
+    });
+    const allDone = [...todayCompleted, ...pastMatches].slice(0, 10); // most recent 10
 
-    if (pastMatches.length === 0) {
+    if (allDone.length === 0) {
         doneHdr.style.display = 'none';
         doneContainer.innerHTML = '';
     } else {
         doneHdr.style.display = 'flex';
-        doneContainer.innerHTML = pastMatches.reverse().map(m => {
-            // Look up prediction: try Matches sheet id, then team-name pair from uid
+        doneContainer.innerHTML = allDone.map(m => {
             var _t1 = m.team1.replace(/[^a-zA-Z0-9]/g, '_');
             var _t2 = m.team2.replace(/[^a-zA-Z0-9]/g, '_');
             var _teamKey = '__teams__' + _t1 + '_' + _t2;
@@ -1312,11 +1318,11 @@ function renderPredictPage() {
             let resultClass = 'no-pred', resultLabel = 'No prediction', pts = 0;
 
             if (pred && !isNaN(pred.s1) && !isNaN(pred.s2)) {
-                const exactMatch   = pred.s1 === m.s1 && pred.s2 === m.s2;
-                const resultMatch  = Math.sign(pred.s1 - pred.s2) === Math.sign(m.s1 - m.s2);
-                if (exactMatch)        { pts = 3; resultClass = 'exact';   resultLabel = '🎯 Exact score!'; }
-                else if (resultMatch)  { pts = 1; resultClass = 'correct'; resultLabel = '✅ Correct result'; }
-                else                   { pts = 0; resultClass = 'wrong';   resultLabel = '❌ Wrong'; }
+                const exactMatch  = pred.s1 === m.s1 && pred.s2 === m.s2;
+                const resultMatch = Math.sign(pred.s1 - pred.s2) === Math.sign(m.s1 - m.s2);
+                if (exactMatch)       { pts = 3; resultClass = 'exact';   resultLabel = '🎯 Exact score!'; }
+                else if (resultMatch) { pts = 1; resultClass = 'correct'; resultLabel = '✅ Correct result'; }
+                else                  { pts = 0; resultClass = 'wrong';   resultLabel = '❌ Wrong'; }
             }
 
             return `

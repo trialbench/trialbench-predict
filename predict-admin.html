@@ -275,6 +275,12 @@ body {
     white-space: nowrap;
 }
 
+.pts-col {
+    position: sticky; right: 0; background: #0b0f1a;
+    border-left: 1px solid rgba(255,255,255,0.1) !important;
+    text-align: center; z-index: 1;
+    min-width: 48px;
+}
 .wa-copy-btn:hover { background: rgba(37,211,102,0.18); }
 </style>
 </head>
@@ -287,30 +293,7 @@ body {
 
 <div class="body">
 
-    <!-- SETUP CHECKLIST -->
-    <div class="section-hdr">
-        <h2>⚙️ One-Time Setup</h2>
-        <div class="line"></div>
-    </div>
-    <div class="setup-notice">
-        <div class="setup-notice-title">Complete these steps once</div>
-        <div class="setup-step">
-            <div class="num">1</div>
-            <div>Add a new tab to your Google Sheet named exactly <code>Predictions</code> with columns: <code>PlayerID | PlayerName | MatchID | Date | Score1 | Score2 | SubmittedAt</code></div>
-        </div>
-        <div class="setup-step">
-            <div class="num">2</div>
-            <div>Open <strong>Extensions → Apps Script</strong> in your sheet and paste the code from <code>predict-gas.js</code>. Click Deploy → New deployment → Web app → Anyone. Copy the URL.</div>
-        </div>
-        <div class="setup-step">
-            <div class="num">3</div>
-            <div>Paste that URL into <code>predict.html</code> at the <code>GAS_URL</code> variable, and fill in the <code>PLAYERS</code> array with all player IDs, names, flags, and PINs.</div>
-        </div>
-        <div class="setup-step">
-            <div class="num">4</div>
-            <div>Send each player their unique WhatsApp message from the panel below. They bookmark it once — done.</div>
-        </div>
-    </div>
+
 
     <!-- OVERVIEW STATS -->
     <div class="section-hdr">
@@ -698,7 +681,7 @@ function renderPredTable() {
         </th>`;
     }).join('');
 
-    const rows = filteredPlayers.map(player => {
+    const playerRows = filteredPlayers.map(player => {
         const cells = matchKeys.map(key => {
             const res = resultMap[player.id] && resultMap[player.id][key];
             if (!res) {
@@ -712,9 +695,31 @@ function renderPredTable() {
             </div></td>`;
         }).join('');
 
+        // Calculate total pts for this player
+        const totalPts = matchKeys.reduce((sum, key) => {
+            const res = resultMap[player.id] && resultMap[player.id][key];
+            return sum + (res && res.pts !== null ? res.pts : 0);
+        }, 0);
+
+        return { player, cells, totalPts };
+    });
+
+    // Sort by total pts descending
+    playerRows.sort((a, b) => b.totalPts - a.totalPts);
+
+    const rows = playerRows.map(({ player, cells, totalPts }, i) => {
+        const rankEmojis = ['🥇', '🥈', '🥉'];
+        const rank = i < 3 ? rankEmojis[i] : `#${i + 1}`;
+        const ptColor = totalPts >= 3 ? 'var(--accent)' : totalPts > 0 ? 'var(--warning)' : 'var(--text-muted)';
         return `<tr>
             <td class="player-col">${player.flag} ${player.name}</td>
             ${cells}
+            <td class="pts-col">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+                    <span style="font-size:14px;font-weight:900;color:${ptColor}">${totalPts}</span>
+                    <span style="font-size:9px;color:var(--text-muted);font-weight:700">${rank}</span>
+                </div>
+            </td>
         </tr>`;
     }).join('');
 
@@ -725,6 +730,7 @@ function renderPredTable() {
                     <tr>
                         <th class="player-col">Player</th>
                         ${colHeaders}
+                        <th class="pts-col" style="position:sticky;right:0;background:#0b0f1a;z-index:3;border-left:1px solid rgba(255,255,255,0.1)">PTS</th>
                     </tr>
                 </thead>
                 <tbody>${rows}</tbody>

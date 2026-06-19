@@ -203,6 +203,58 @@ body {
     font-size: 13px; font-weight: 800;
     border-radius: 10px; cursor: pointer; transition: all 0.15s;
 }
+/* ── FILTER BUTTONS ── */
+.filter-btn {
+    font-family: 'Inter', sans-serif;
+    font-size: 12px; font-weight: 700;
+    padding: 6px 14px; border-radius: 99px;
+    border: 1px solid var(--border);
+    background: rgba(255,255,255,0.04);
+    color: var(--text-muted); cursor: pointer;
+    transition: all 0.15s;
+}
+.filter-btn:hover { color: #fff; background: rgba(255,255,255,0.08); }
+.filter-btn.active { background: var(--accent-dim); color: var(--accent); border-color: rgba(34,197,94,0.25); }
+
+/* ── PREDICTION GRID ── */
+.pred-grid-wrap { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+.pred-grid {
+    border-collapse: collapse; width: 100%; min-width: 500px;
+    font-size: 12px;
+}
+.pred-grid th, .pred-grid td {
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+    border-right: 1px solid var(--border); white-space: nowrap;
+}
+.pred-grid th {
+    background: rgba(255,255,255,0.03);
+    font-size: 10px; font-weight: 800; letter-spacing: 0.8px;
+    text-transform: uppercase; color: var(--text-muted);
+    text-align: center; position: sticky; top: 0; z-index: 2;
+}
+.pred-grid th.player-col { text-align: left; position: sticky; left: 0; z-index: 3; background: #0b0f1a; }
+.pred-grid td.player-col {
+    position: sticky; left: 0; background: #0b0f1a;
+    font-weight: 700; font-size: 12px; z-index: 1;
+    border-right: 1px solid rgba(255,255,255,0.1);
+}
+.pred-grid tr:last-child td { border-bottom: none; }
+.pred-grid td { text-align: center; }
+
+.grid-cell { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.grid-cell .pick { font-size: 12px; font-weight: 800; color: #fff; }
+.grid-cell .icon { font-size: 14px; line-height: 1; }
+.grid-cell.exact   .pick { color: var(--accent); }
+.grid-cell.result  .pick { color: var(--warning); }
+.grid-cell.wrong   .pick { color: var(--danger); opacity: 0.8; }
+.grid-cell.pending .pick { color: var(--text-muted); }
+.grid-cell.none    .pick { color: rgba(255,255,255,0.1); }
+
+.match-col-hdr { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+.match-col-hdr .teams { font-size: 10px; font-weight: 800; color: #fff; }
+.match-col-hdr .score { font-size: 10px; color: var(--accent); font-weight: 700; }
+.match-col-hdr .score.pending { color: var(--text-muted); }
+
 .wa-copy-btn:hover { background: rgba(37,211,102,0.18); }
 </style>
 </head>
@@ -274,26 +326,24 @@ body {
     <div class="wa-template" id="waTemplate">Select a player to preview their message</div>
     <button class="wa-copy-btn" onclick="copyWaTemplate()">📋 Copy WhatsApp Message</button>
 
-    <!-- ALL PREDICTIONS -->
+    <!-- ALL PREDICTIONS GRID -->
     <div class="section-hdr" style="margin-top:8px">
         <h2>All Predictions</h2>
         <div class="line"></div>
     </div>
-    <div class="table-wrap">
-        <table class="pred-table">
-            <thead>
-                <tr>
-                    <th>Player</th>
-                    <th>Match</th>
-                    <th>Pick</th>
-                    <th>Result</th>
-                    <th>Pts</th>
-                </tr>
-            </thead>
-            <tbody id="predTableBody">
-                <tr><td colspan="5" class="loading-row"><span class="spinner"></span>Loading…</td></tr>
-            </tbody>
-        </table>
+
+    <!-- Filter tabs -->
+    <div id="predFilters" style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px">
+        <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+        <button class="filter-btn" onclick="setFilter('pending',this)">⏳ Pending</button>
+        <button class="filter-btn" onclick="setFilter('exact',this)">🎯 Exact</button>
+        <button class="filter-btn" onclick="setFilter('result',this)">✅ Result</button>
+        <button class="filter-btn" onclick="setFilter('wrong',this)">❌ Wrong</button>
+        <button class="filter-btn" onclick="setFilter('none',this)">🚫 No Pick</button>
+    </div>
+
+    <div id="predGrid">
+        <div class="loading-row"><span class="spinner"></span>Loading…</div>
     </div>
 
 </div>
@@ -501,73 +551,157 @@ function renderPlayerLinks() {
     }).join('');
 }
 
-function renderPredTable() {
-    const tbody = document.getElementById('predTableBody');
+let _activeFilter = 'all';
 
-    if (_predictions.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text-muted);font-size:13px">No predictions yet</td></tr>`;
+function setFilter(filter, btn) {
+    _activeFilter = filter;
+    document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    renderPredTable();
+}
+
+function renderPredTable() {
+    const container = document.getElementById('predGrid');
+
+    if (_predictions.length === 0 && _matches.length === 0) {
+        container.innerHTML = `<div class="loading-row">No predictions yet</div>`;
         return;
     }
 
-    // Build result lookup per prediction using IDENTICAL logic to predict.html calcPlayerPts:
-    // For each scored match, sanitise team names, then find predictions where
-    // matchId.split('_').slice(1).join('_') === t1s + '_' + t2s
-    const resultMap = {}; // matchId → { pts, resultLabel, resultColor, match }
+    // ── Build result lookup (same logic as predict.html calcPlayerPts) ──
+    // resultMap[playerId][matchTeamPart] = { pts, type, pick, match }
+    const resultMap = {};
+    PLAYERS.forEach(p => { resultMap[p.id] = {}; });
+
     _matches.forEach(function(match) {
         const t1s = match.team1.replace(/[^a-zA-Z0-9]/g, '_');
         const t2s = match.team2.replace(/[^a-zA-Z0-9]/g, '_');
         const matchTeamPart = t1s + '_' + t2s;
+
         _predictions.forEach(function(p) {
             const parts = p.matchId.split('_');
             const teamPart = parts.slice(1).join('_');
             if (teamPart !== matchTeamPart) return;
             if (isNaN(p.s1) || isNaN(p.s2)) return;
+
             const exact  = p.s1 === match.s1 && p.s2 === match.s2;
             const result = Math.sign(p.s1 - p.s2) === Math.sign(match.s1 - match.s2);
-            let pts, resultLabel, resultColor;
-            if (exact)        { pts = 3; resultLabel = '🎯 Exact';  resultColor = 'var(--accent)'; }
-            else if (result)  { pts = 1; resultLabel = '✅ Result'; resultColor = 'var(--warning)'; }
-            else              { pts = 0; resultLabel = '❌ Wrong';  resultColor = 'var(--danger)'; }
-            // key = playerId + matchId so each player's prediction is distinct
-            resultMap[p.playerId + '|' + p.matchId] = { pts, resultLabel, resultColor, match };
+            const type   = exact ? 'exact' : result ? 'result' : 'wrong';
+            const pts    = exact ? 3 : result ? 1 : 0;
+
+            if (!resultMap[p.playerId]) resultMap[p.playerId] = {};
+            resultMap[p.playerId][matchTeamPart] = { pts, type, pick: `${p.s1}–${p.s2}`, match };
         });
     });
 
-    const rows = _predictions.map(p => {
-        const key = p.playerId + '|' + p.matchId;
-        const res = resultMap[key];
-
-        // Match label: team1 v team2 decoded from matchId (same sanitisation, reversed)
+    // Unscored matches — just mark as pending if prediction exists
+    _predictions.forEach(function(p) {
         const parts = p.matchId.split('_');
-        const matchLabel = parts.length >= 3
-            ? parts.slice(1).join(' ').replace(/_/g, ' ')  // rough decode for display
-            : `Match #${p.matchId}`;
-
-        let resultLabel, resultColor, ptsCell;
-        if (res) {
-            resultLabel = res.resultLabel;
-            resultColor = res.resultColor;
-            ptsCell = `<span class="pred-pts ${res.pts === 0 ? 'zero' : ''}">${res.pts > 0 ? '+' + res.pts : '0'} pt${res.pts !== 1 ? 's' : ''}</span>`;
-        } else {
-            resultLabel = '<span style="color:var(--warning);font-weight:700">⏳ Pending</span>';
-            resultColor = 'var(--text-muted)';
-            ptsCell = '<span style="color:var(--text-muted)">—</span>';
+        const teamPart = parts.slice(1).join('_');
+        if (!resultMap[p.playerId]) resultMap[p.playerId] = {};
+        if (!resultMap[p.playerId][teamPart]) {
+            resultMap[p.playerId][teamPart] = {
+                pts: null, type: 'pending',
+                pick: isNaN(p.s1) ? '—' : `${p.s1}–${p.s2}`, match: null
+            };
         }
-
-        const player = PLAYERS.find(pl => pl.id === p.playerId);
-        const flag   = player ? player.flag : '🏴';
-
-        return `
-        <tr>
-            <td><span style="margin-right:5px">${flag}</span>${p.playerName}</td>
-            <td>${matchLabel}</td>
-            <td style="color:#fff;font-weight:800">${isNaN(p.s1) ? '—' : `${p.s1}–${p.s2}`}</td>
-            <td style="color:${resultColor};font-weight:700">${resultLabel}</td>
-            <td>${ptsCell}</td>
-        </tr>`;
     });
 
-    tbody.innerHTML = rows.join('');
+    // ── Collect all unique matches (columns) from predictions ──
+    const matchKeySet = new Set();
+    _predictions.forEach(function(p) {
+        const parts = p.matchId.split('_');
+        matchKeySet.add(parts.slice(1).join('_'));
+    });
+    // Sort columns: scored matches first, then pending
+    const scoredKeys = new Set(_matches.map(m =>
+        m.team1.replace(/[^a-zA-Z0-9]/g, '_') + '_' + m.team2.replace(/[^a-zA-Z0-9]/g, '_')
+    ));
+    const matchKeys = [
+        ...[...matchKeySet].filter(k => scoredKeys.has(k)),
+        ...[...matchKeySet].filter(k => !scoredKeys.has(k)),
+    ];
+
+    // Match display info
+    const matchInfo = {}; // teamPart → { label, score }
+    _matches.forEach(function(m) {
+        const key = m.team1.replace(/[^a-zA-Z0-9]/g, '_') + '_' + m.team2.replace(/[^a-zA-Z0-9]/g, '_');
+        const t1 = m.team1.split(' ').map(w => w[0]).join('').slice(0,3).toUpperCase();
+        const t2 = m.team2.split(' ').map(w => w[0]).join('').slice(0,3).toUpperCase();
+        matchInfo[key] = { label: `${t1} v ${t2}`, score: `${m.s1}–${m.s2}` };
+    });
+    matchKeys.forEach(function(key) {
+        if (!matchInfo[key]) {
+            const parts = key.split('_');
+            const mid = Math.floor(parts.length / 2);
+            const t1 = parts.slice(0, mid).join('').slice(0,3).toUpperCase();
+            const t2 = parts.slice(mid).join('').slice(0,3).toUpperCase();
+            matchInfo[key] = { label: `${t1} v ${t2}`, score: null };
+        }
+    });
+
+    // ── Apply filter ──
+    // Filter determines which PLAYERS to show (rows), based on their cell types
+    const filteredPlayers = PLAYERS.filter(player => {
+        if (_activeFilter === 'all') return true;
+
+        const cells = matchKeys.map(key => {
+            const res = resultMap[player.id] && resultMap[player.id][key];
+            return res ? res.type : 'none';
+        });
+
+        if (_activeFilter === 'none') return cells.every(c => c === 'none');
+        return cells.some(c => c === _activeFilter);
+    });
+
+    if (filteredPlayers.length === 0) {
+        container.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted);font-size:13px">No players match this filter</div>`;
+        return;
+    }
+
+    // ── Build grid ──
+    const colHeaders = matchKeys.map(key => {
+        const info = matchInfo[key];
+        return `<th>
+            <div class="match-col-hdr">
+                <span class="teams">${info.label}</span>
+                <span class="score ${info.score ? '' : 'pending'}">${info.score || '—'}</span>
+            </div>
+        </th>`;
+    }).join('');
+
+    const rows = filteredPlayers.map(player => {
+        const cells = matchKeys.map(key => {
+            const res = resultMap[player.id] && resultMap[player.id][key];
+            if (!res) {
+                // No prediction at all for this match
+                return `<td><div class="grid-cell none"><span class="icon">·</span></div></td>`;
+            }
+            const icons = { exact: '🎯', result: '✅', wrong: '❌', pending: '⏳' };
+            return `<td><div class="grid-cell ${res.type}">
+                <span class="icon">${icons[res.type] || ''}</span>
+                <span class="pick">${res.pick}</span>
+            </div></td>`;
+        }).join('');
+
+        return `<tr>
+            <td class="player-col">${player.flag} ${player.name}</td>
+            ${cells}
+        </tr>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="pred-grid-wrap">
+            <table class="pred-grid">
+                <thead>
+                    <tr>
+                        <th class="player-col">Player</th>
+                        ${colHeaders}
+                    </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+            </table>
+        </div>`;
 }
 
 // ══════════════════════════════════════════════

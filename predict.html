@@ -694,7 +694,7 @@ const PLAYERS = [
     { id: 'christina',        name: 'Christina',        flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', country: 'England'             },
     { id: 'vaishak',          name: 'Vaishak',          flag: '🇭🇷', country: 'Croatia'             },
     { id: 'tintu',            name: 'Tintu',            flag: '🇬🇭', country: 'Ghana'               },
-    { id: 'ajmal',            name: 'Ajmal',            flag: '🇭🇹', country: 'Haiti'               },
+    { id: 'ajmal',            name: 'Ajmal',             flag: '🇭🇹', country: 'Haiti'               },
     { id: 'sobha',            name: 'Sobha',            flag: '🇸🇪', country: 'Sweden'              },
     { id: 'athulya',          name: 'Athulya',          flag: '🇫🇷', country: 'France'              },
     { id: 'divya',            name: 'Divya',            flag: '🇵🇦', country: 'Panama'              },
@@ -872,49 +872,40 @@ function onAuthenticated() {
 // ══════════════════════════════════════════════
 //  STREAK
 // ══════════════════════════════════════════════
-function getStreak() {
-    try {
-        return JSON.parse(localStorage.getItem(STREAK_KEY)) || { count: 0, lastDate: null };
-    } catch { return { count: 0, lastDate: null }; }
-}
-
-function saveStreak(data) {
-    localStorage.setItem(STREAK_KEY, JSON.stringify(data));
-}
-
 function getTodayStr() {
     return new Date().toISOString().slice(0, 10); // YYYY-MM-DD
 }
 
+// Local-session flag: true once the player submits a prediction this
+// session, before the sheet refetch confirms it. Used only to give
+// instant feedback on the streak bar right after submitting — the sheet
+// (via SubmittedAt) remains the single source of truth everywhere else
+// (standings, My Score, and the streak bar itself on every reload).
+let _localStreakBoost = false;
+
+// Returns the streak to show in the UI: the sheet-derived truth,
+// optionally bumped by +1 if the player just submitted this session and
+// the sheet hasn't been refetched yet.
+function getDisplayStreak() {
+    const sheet = calcStreakFromPredictions(playerId);
+    if (sheet.predictedToday || !_localStreakBoost) return sheet;
+    return { count: sheet.count + 1, predictedToday: true };
+}
+
 function recordPredictionToday() {
-    const today = getTodayStr();
-    const streak = getStreak();
-    if (streak.lastDate === today) return; // already recorded today
-
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const yStr = yesterday.toISOString().slice(0, 10);
-
-    if (streak.lastDate === yStr) {
-        streak.count += 1;
-    } else {
-        streak.count = 1; // reset
-    }
-    streak.lastDate = today;
-    saveStreak(streak);
+    _localStreakBoost = true;
     renderStreak();
 
     // Show streak bonus banner at each milestone
+    const { count } = getDisplayStreak();
     const STREAK_MILESTONES = [3, 6, 9, 12, 15];
-    if (STREAK_MILESTONES.includes(streak.count)) {
+    if (STREAK_MILESTONES.includes(count)) {
         document.getElementById('streakBonusBanner').classList.remove('hidden');
     }
 }
 
 function renderStreak() {
-    const { count, lastDate } = getStreak();
-    const today = getTodayStr();
-    const predictedToday = lastDate === today;
+    const { count, predictedToday } = getDisplayStreak();
     const atRisk = count > 0 && !predictedToday;
     const bar = document.getElementById('streakBar');
     const MILESTONES = [3, 6, 9, 12, 15];
@@ -1103,10 +1094,11 @@ async function loadData() {
         // Predictions: A=PlayerID, B=PlayerName, C=MatchID, D=Date, E=Score1, F=Score2
         _predictionsData = rawPredictions
             .filter(r => r[0] && r[2] && r[0].trim().toLowerCase() !== 'playerid') // skip header row
-            .map(r => ({ playerId: r[0].trim().toLowerCase(), playerName: r[1], matchId: r[2].trim(), date: r[3], s1: parseInt(r[4]), s2: parseInt(r[5]) }));
+            .map(r => ({ playerId: r[0].trim().toLowerCase(), playerName: r[1], matchId: r[2].trim(), date: r[3], s1: parseInt(r[4]), s2: parseInt(r[5]), submittedAt: r[6] }));
 
         renderPredictPage();
         renderStandings();
+        renderStreak(); // resync streak bar with sheet truth now that data has loaded
 
     } catch(e) {
         document.getElementById('openMatches').innerHTML =
@@ -1401,35 +1393,40 @@ function calcPlayerPts() {
 
 // ── Derive streak for any player from sheet prediction dates ──
 function calcStreakFromPredictions(pid) {
-    // Collect unique calendar dates this player submitted a prediction
+    // Collect unique IST calendar dates this player actually submitted a
+    // prediction, based on SubmittedAt — NOT the match date. A player can
+    // predict tomorrow's match today, so match date isn't a reliable
+    // signal of which day they actually engaged.
     const dateSeen = new Set();
     _predictionsData.forEach(function(p) {
-        if (p.playerId !== pid) return;
-        // date field is "DD-Mon" (e.g. "18-Jun") — convert to YYYY-MM-DD
-        if (!p.date) return;
-        var parts = p.date.trim().split('-');
-        if (parts.length < 2) return;
-        var day = parseInt(parts[0]);
-        var mon = MONTHS[parts[1]];
-        if (isNaN(day) || mon === undefined) return;
-        var year = new Date().getFullYear();
-        var d = new Date(year, mon, day);
-        dateSeen.add(d.toISOString().slice(0, 10));
+        if (p.playerId !== pid || !p.submittedAt) return;
+        var d = new Date(p.submittedAt);
+        if (isNaN(d.getTime())) return;
+        var ist = new Date(d.getTime() + 5.5 * 3600000);
+        dateSeen.add(ist.toISOString().slice(0, 10));
     });
 
-    if (dateSeen.size === 0) return 0;
+    if (dateSeen.size === 0) return { count: 0, predictedToday: false };
 
-    // Walk backwards from today counting consecutive days
+    var istNow = getISTNow();
+    var todayKey = istNow.toISOString().slice(0, 10);
+    var predictedToday = dateSeen.has(todayKey);
+
+    // Walk backwards counting consecutive days. If today hasn't been
+    // predicted yet, start from yesterday so an in-progress streak isn't
+    // shown as broken until the day actually passes.
+    var cursor = new Date(istNow);
+    cursor.setUTCHours(0, 0, 0, 0);
+    if (!predictedToday) cursor.setUTCDate(cursor.getUTCDate() - 1);
+
     var count = 0;
-    var cursor = new Date();
-    cursor.setHours(0, 0, 0, 0);
     while (true) {
         var key = cursor.toISOString().slice(0, 10);
         if (!dateSeen.has(key)) break;
         count++;
-        cursor.setDate(cursor.getDate() - 1);
+        cursor.setUTCDate(cursor.getUTCDate() - 1);
     }
-    return count;
+    return { count: count, predictedToday: predictedToday };
 }
 
 // ── Render standings ──
@@ -1459,16 +1456,12 @@ function renderStandings() {
         });
     });
 
-    // Build rows — derive streak from sheet data for every player
-    const { count: myStreakCount } = getStreak(); // still used for the streak bar UI
+    // Build rows — derive streak from sheet data for every player, so the
+    // standing looks identical no matter who's viewing it.
     const rows = PLAYERS.map(p => {
         const exact  = playerExact[p.id]  || 0;
         const result = playerResult[p.id] || 0;
-        // For current player prefer localStorage streak (updated instantly on submit);
-        // for all others derive from sheet prediction dates
-        const streakCount = p.id === playerId
-            ? myStreakCount
-            : calcStreakFromPredictions(p.id);
+        const streakCount = calcStreakFromPredictions(p.id).count;
         const capped = Math.min(streakCount, 15);
         const streakBonus = MILESTONES.filter(m => m <= capped).reduce((acc, m, i) => acc + (i + 1), 0);
         const pts = exact * 3 + result * 1 + streakBonus;
@@ -1659,7 +1652,7 @@ function switchTab(tab) {
 }
 
 function renderMyScore() {
-    const { count } = getStreak();
+    const { count } = getDisplayStreak();
     const MILESTONES = [3, 6, 9, 12, 15];
 
     // Pull pts from sheet data (same source as standings)

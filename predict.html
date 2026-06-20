@@ -414,6 +414,32 @@ body {
 }
 
 /* ── PRACTICE MODE BANNER ── */
+/* ── Announcement banners ── */
+.ann-banner {
+    display: flex; align-items: flex-start; gap: 10px;
+    margin: 8px 16px 0;
+    padding: 11px 14px;
+    background: linear-gradient(135deg, #1a1f2e, #1e2538);
+    border: 1px solid #3b4a6b;
+    border-left: 3px solid #5b8dee;
+    border-radius: 12px;
+    animation: annSlideIn 0.3s ease;
+}
+@keyframes annSlideIn {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+.ann-emoji { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
+.ann-body  { flex: 1; }
+.ann-msg   { font-size: 13px; font-weight: 600; color: #e8eaf6; line-height: 1.4; }
+.ann-link  { display: inline-block; margin-top: 4px; font-size: 11px; color: #5b8dee; font-weight: 600; text-decoration: none; }
+.ann-dismiss {
+    background: none; border: none; color: #6b7a9e;
+    font-size: 16px; cursor: pointer; padding: 0 0 0 6px;
+    flex-shrink: 0; line-height: 1;
+}
+.ann-dismiss:hover { color: #e8eaf6; }
+
 .practice-banner {
     margin: 12px 20px 0;
     background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.03));
@@ -530,6 +556,9 @@ body {
     </div>
     <button class="bookmark-dismiss" onclick="dismissBookmark()">✕</button>
 </div>
+
+<!-- ANNOUNCEMENT BANNERS -->
+<div id="annBanners"></div>
 
 <!-- PLAYER HEADER -->
 <div class="player-header" id="playerHeader">
@@ -1073,12 +1102,53 @@ let _scheduleData = [];
 let _matchesData  = [];
 let _predictionsData = [];
 
+// ── Announcement banners ──
+function renderAnnouncements(rows) {
+    const container = document.getElementById('annBanners');
+    if (!container) return;
+
+    // rows: A=Message, B=Active(1/0), C=Emoji, D=Link(optional)
+    const active = rows.filter(r => r[0] && String(r[1]).trim() === '1');
+    if (active.length === 0) { container.innerHTML = ''; return; }
+
+    const dismissed = JSON.parse(localStorage.getItem('tbcDismissed') || '[]');
+
+    const html = active
+        .filter(r => !dismissed.includes(r[0].trim()))
+        .map(r => {
+            const msg   = r[0].trim();
+            const emoji = (r[2] || '📢').trim();
+            const link  = r[3] ? r[3].trim() : '';
+            const key   = encodeURIComponent(msg).slice(0, 80);
+            return `
+            <div class="ann-banner" id="ann-${key}">
+                <span class="ann-emoji">${emoji}</span>
+                <div class="ann-body">
+                    <div class="ann-msg">${msg}</div>
+                    ${link ? `<a class="ann-link" href="${link}" target="_blank">Learn more →</a>` : ''}
+                </div>
+                <button class="ann-dismiss" onclick="dismissAnn('${key}','${msg}')" title="Dismiss">✕</button>
+            </div>`;
+        }).join('');
+
+    container.innerHTML = html;
+}
+
+function dismissAnn(key, msg) {
+    const el = document.getElementById('ann-' + key);
+    if (el) { el.style.opacity = '0'; el.style.transform = 'translateY(-4px)'; el.style.transition = 'all 0.2s ease'; setTimeout(() => el.remove(), 200); }
+    const dismissed = JSON.parse(localStorage.getItem('tbcDismissed') || '[]');
+    dismissed.push(msg.trim());
+    localStorage.setItem('tbcDismissed', JSON.stringify(dismissed));
+}
+
 async function loadData() {
     try {
-        const [rawSchedule, rawMatches, rawPredictions] = await Promise.all([
+        const [rawSchedule, rawMatches, rawPredictions, rawAnnouncements] = await Promise.all([
             fetchSheet('Schedule'),
             fetchSheet('Matches'),
             fetchSheet('Predictions').catch(() => []), // ok if tab doesn't exist yet
+            fetchSheet('Announcements').catch(() => []),
         ]);
 
         // Schedule: A=#, B=Date, C=Group, D=Team1, E=Team2, F=KickoffIST
@@ -1096,6 +1166,7 @@ async function loadData() {
             .filter(r => r[0] && r[2] && r[0].trim().toLowerCase() !== 'playerid') // skip header row
             .map(r => ({ playerId: r[0].trim().toLowerCase(), playerName: r[1], matchId: r[2].trim(), date: r[3], s1: parseInt(r[4]), s2: parseInt(r[5]), submittedAt: r[6] }));
 
+        renderAnnouncements(rawAnnouncements);
         renderPredictPage();
         renderStandings();
         renderStreak(); // resync streak bar with sheet truth now that data has loaded

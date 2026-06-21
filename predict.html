@@ -588,12 +588,12 @@ body {
     🔥 Streak milestone! You earned <strong style="margin:0 4px">a bonus point</strong> — keep it going!
 </div>
 
-<!-- PRACTICE MODE BANNER -->
+<!-- PRACTICE / LIVE MODE BANNER -->
 <div class="practice-banner" id="practiceBanner">
-    <div class="practice-banner-icon">🎯</div>
+    <div class="practice-banner-icon" id="practiceBannerIcon">🎯</div>
     <div>
-        <div class="practice-banner-title">Practice Mode — Points count from R32</div>
-        <div class="practice-banner-sub">Submit picks now to build your streak. Scoring goes live at Round of 32.</div>
+        <div class="practice-banner-title" id="practiceBannerTitle">Practice Mode — Points count from R32</div>
+        <div class="practice-banner-sub" id="practiceBannerSub">Submit picks now to build your streak. Scoring goes live at Round of 32.</div>
     </div>
 </div>
 
@@ -898,6 +898,23 @@ function onAuthenticated() {
 
     // Fetch and render data
     loadData();
+
+    // Flip practice banner to live mode on June 29 — runs immediately, no sheet needed
+    (function() {
+        const R32_START = new Date('2026-06-29T00:00:00+05:30');
+        const isR32Live = new Date() >= R32_START;
+        if (!isR32Live) return;
+        const bannerIcon  = document.getElementById('practiceBannerIcon');
+        const bannerTitle = document.getElementById('practiceBannerTitle');
+        const bannerSub   = document.getElementById('practiceBannerSub');
+        const banner      = document.getElementById('practiceBanner');
+        if (!bannerTitle) return;
+        bannerIcon.textContent  = '🏁';
+        bannerTitle.textContent = 'Round of 32 is LIVE — predictions now count!';
+        bannerSub.textContent   = 'Your picks from Round of 32 onwards feed into the main league. Streak bonus included!';
+        banner.style.borderColor = '#22c55e';
+        banner.style.background  = 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))';
+    })();
 }
 
 // ══════════════════════════════════════════════
@@ -1169,6 +1186,7 @@ async function loadData() {
             .map(r => ({ playerId: r[0].trim().toLowerCase(), playerName: r[1], matchId: r[2].trim(), date: r[3], s1: parseInt(r[4]), s2: parseInt(r[5]), submittedAt: r[6] }));
 
         renderAnnouncements(rawAnnouncements);
+
         renderPredictPage();
         renderStandings();
         renderStreak(); // resync streak bar with sheet truth now that data has loaded
@@ -1577,6 +1595,11 @@ function renderStandings() {
     const container = document.getElementById('predStandings');
     const MILESTONES = [3, 6, 9, 12, 15];
 
+    // From June 29, standings only count R32+ match prediction pts
+    // Streak bonus always counts in full regardless of date
+    const R32_START = new Date('2026-06-29T00:00:00+05:30');
+    const isR32Live = new Date() >= R32_START;
+
     // Per-player breakdown: exactCount, resultCount
     const playerExact  = {};
     const playerResult = {};
@@ -1585,6 +1608,11 @@ function renderStandings() {
         if (!playerResult[p.playerId]) playerResult[p.playerId] = 0;
     });
     _matchesData.forEach(function(match) {
+        // If R32 is live, only count matches from June 29 onwards
+        if (isR32Live) {
+            var matchDate = parseSheetDate(match.date);
+            if (!matchDate || matchDate < R32_START) return;
+        }
         const t1s = match.team1.replace(/[^a-zA-Z0-9]/g, '_');
         const t2s = match.team2.replace(/[^a-zA-Z0-9]/g, '_');
         _predictionsData.filter(function(p) {

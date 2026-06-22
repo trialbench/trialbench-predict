@@ -937,7 +937,8 @@ let _localStreakBoost = false;
 function getDisplayStreak() {
     const sheet = calcStreakFromPredictions(playerId);
     if (sheet.predictedToday || !_localStreakBoost) return sheet;
-    return { count: sheet.count + 1, predictedToday: true };
+    const newCount = sheet.count + 1;
+    return { count: newCount, predictedToday: true, maxStreak: Math.max(sheet.maxStreak, newCount) };
 }
 
 function recordPredictionToday() {
@@ -1567,7 +1568,7 @@ function calcStreakFromPredictions(pid) {
         dateSeen.add(ist.toISOString().slice(0, 10));
     });
 
-    if (dateSeen.size === 0) return { count: 0, predictedToday: false };
+    if (dateSeen.size === 0) return { count: 0, predictedToday: false, maxStreak: 0 };
 
     var istNow = getISTNow();
     var todayKey = istNow.toISOString().slice(0, 10);
@@ -1587,7 +1588,31 @@ function calcStreakFromPredictions(pid) {
         count++;
         cursor.setUTCDate(cursor.getUTCDate() - 1);
     }
-    return { count: count, predictedToday: predictedToday };
+
+    // Calculate maxStreak — highest consecutive streak ever reached.
+    // Bonus points are permanently earned based on this, even if streak resets.
+    var sortedDates = Array.from(dateSeen).sort();
+    var maxStreak = 0, runStreak = 0, prevDate = null;
+    sortedDates.forEach(function(dateStr) {
+        if (prevDate) {
+            var prev = new Date(prevDate);
+            var curr = new Date(dateStr);
+            var diffDays = Math.round((curr - prev) / 86400000);
+            if (diffDays === 1) {
+                runStreak++;
+            } else {
+                runStreak = 1;
+            }
+        } else {
+            runStreak = 1;
+        }
+        if (runStreak > maxStreak) maxStreak = runStreak;
+        prevDate = dateStr;
+    });
+    // If current streak is higher than historical max (e.g. localBoost), use it
+    if (count > maxStreak) maxStreak = count;
+
+    return { count: count, predictedToday: predictedToday, maxStreak: maxStreak };
 }
 
 // ── Render standings ──
@@ -1632,11 +1657,11 @@ function renderStandings() {
     const rows = PLAYERS.map(p => {
         const exact  = playerExact[p.id]  || 0;
         const result = playerResult[p.id] || 0;
-        const streakCount = calcStreakFromPredictions(p.id).count;
-        const capped = Math.min(streakCount, 15);
-        const streakBonus = MILESTONES.filter(m => m <= capped).reduce((acc, m, i) => acc + (i + 1), 0);
+        const { count: streakCount, maxStreak } = calcStreakFromPredictions(p.id);
+        const cappedMax = Math.min(maxStreak, 15);
+        const streakBonus = MILESTONES.filter(m => m <= cappedMax).reduce((acc, m, i) => acc + (i + 1), 0);
         const pts = exact * 3 + result * 1 + streakBonus;
-        return { ...p, pts, exact, result, streakBonus, streakCount };
+        return { ...p, pts, exact, result, streakBonus, streakCount, maxStreak };
     }).sort((a, b) => b.pts - a.pts);
 
     if (rows.length === 0) {
@@ -1656,8 +1681,11 @@ function renderStandings() {
         // Breakdown rows
         const bdExact  = `<div class="pred-lb-bd-row"><span>Exact scores &nbsp;<span style="color:#fff;font-weight:700">${p.exact} × 3</span></span><span class="pred-lb-bd-val">= ${p.exact * 3} pts</span></div>`;
         const bdResult = `<div class="pred-lb-bd-row"><span>Correct results &nbsp;<span style="color:#fff;font-weight:700">${p.result} × 1</span></span><span class="pred-lb-bd-val">= ${p.result} pts</span></div>`;
+        const streakLabel = p.maxStreak > p.streakCount
+            ? `best streak ${p.maxStreak}d`
+            : `${p.streakCount}d streak`;
         const bdStreak = p.streakBonus > 0
-            ? `<div class="pred-lb-bd-row"><span>Streak bonus (${p.streakCount}d)</span><span class="pred-lb-bd-val" style="color:var(--warning)">+${p.streakBonus} pts</span></div>`
+            ? `<div class="pred-lb-bd-row"><span>Streak bonus (${streakLabel})</span><span class="pred-lb-bd-val" style="color:var(--warning)">+${p.streakBonus} pts</span></div>`
             : '';
 
         return `<div class="pred-lb-row ${isMe ? 'me' : ''}" onclick="toggleLbBreakdown(this)">
@@ -1823,7 +1851,7 @@ function switchTab(tab) {
 }
 
 function renderMyScore() {
-    const { count } = getDisplayStreak();
+    const { count, maxStreak } = getDisplayStreak();
     const MILESTONES = [3, 6, 9, 12, 15];
 
     // Pull pts from sheet data (same source as standings)
@@ -1846,9 +1874,10 @@ function renderMyScore() {
         else if (Math.sign(myPred.s1 - myPred.s2) === Math.sign(match.s1 - match.s2)) resultPts += 1;
     });
 
-    // Streak bonus pts earned so far (cumulative, capped at 15d)
-    const cappedCount = Math.min(count, 15);
-    const streakBonusPts = MILESTONES.filter(m => m <= cappedCount)
+    // Streak bonus pts — based on maxStreak (highest ever), not current count.
+    // Milestones already crossed are permanently earned even if streak resets.
+    const cappedMax = Math.min(maxStreak, 15);
+    const streakBonusPts = MILESTONES.filter(m => m <= cappedMax)
         .reduce((acc, m, i) => acc + (i + 1), 0);
     const total = exactPts + resultPts + streakBonusPts;
 

@@ -1681,11 +1681,8 @@ function renderStandings() {
         // Breakdown rows
         const bdExact  = `<div class="pred-lb-bd-row"><span>Exact scores &nbsp;<span style="color:#fff;font-weight:700">${p.exact} × 3</span></span><span class="pred-lb-bd-val">= ${p.exact * 3} pts</span></div>`;
         const bdResult = `<div class="pred-lb-bd-row"><span>Correct results &nbsp;<span style="color:#fff;font-weight:700">${p.result} × 1</span></span><span class="pred-lb-bd-val">= ${p.result} pts</span></div>`;
-        const streakLabel = p.maxStreak > p.streakCount
-            ? `best streak ${p.maxStreak}d`
-            : `${p.streakCount}d streak`;
         const bdStreak = p.streakBonus > 0
-            ? `<div class="pred-lb-bd-row"><span>Streak bonus (${streakLabel})</span><span class="pred-lb-bd-val" style="color:var(--warning)">+${p.streakBonus} pts</span></div>`
+            ? `<div class="pred-lb-bd-row"><span>Streak bonus</span><span class="pred-lb-bd-val" style="color:var(--warning)">+${p.streakBonus} pts</span></div>`
             : '';
 
         return `<div class="pred-lb-row ${isMe ? 'me' : ''}" onclick="toggleLbBreakdown(this)">

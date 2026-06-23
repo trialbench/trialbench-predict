@@ -780,10 +780,17 @@ let pinVerified  = false;
 
 async function checkPinAlreadySaved() {
     const saved = localStorage.getItem(PIN_KEY);
-    // saved is the actual PIN if "Remember me" was ticked, otherwise null
     if (!saved) return; // no saved PIN — show PIN screen normally
 
-    // Silently verify the saved PIN with GAS
+    // Show a loading state instead of the PIN keypad while we verify
+    const overlay = document.getElementById('pinOverlay');
+    overlay.innerHTML = `
+        <div style="text-align:center">
+            <div style="font-size:44px;margin-bottom:16px">⚽</div>
+            <div style="font-size:18px;font-weight:900;margin-bottom:8px">Trial Bench Cup</div>
+            <div class="spinner" style="margin:20px auto 0"></div>
+        </div>`;
+
     try {
         const verifyUrl = GAS_URL
             + '?action=verifyPin'
@@ -797,15 +804,17 @@ async function checkPinAlreadySaved() {
         if (result.valid) {
             _sessionPin = saved;
             pinVerified = true;
-            document.getElementById('pinOverlay').classList.add('hidden');
+            overlay.classList.add('hidden');
             onAuthenticated();
         } else {
-            // PIN no longer valid (changed) — clear and show PIN screen
+            // PIN no longer valid — clear and restore PIN screen
             localStorage.removeItem(PIN_KEY);
+            location.reload();
         }
     } catch(err) {
-        // Network error — fall back to PIN screen silently
+        // Network error — clear and restore PIN screen
         localStorage.removeItem(PIN_KEY);
+        location.reload();
     }
 }
 

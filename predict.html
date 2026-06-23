@@ -86,6 +86,19 @@ body {
 }
 .pin-error-msg.show { opacity: 1; }
 
+.pin-remember {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 20px; cursor: pointer;
+}
+.pin-remember input[type="checkbox"] {
+    width: 18px; height: 18px; accent-color: var(--accent);
+    cursor: pointer; flex-shrink: 0;
+}
+.pin-remember-label {
+    font-size: 13px; font-weight: 600; color: var(--text-muted);
+    cursor: pointer; user-select: none;
+}
+
 /* ── BOOKMARK BANNER (first visit) ── */
 .bookmark-banner {
     background: linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.04));
@@ -530,6 +543,10 @@ body {
         <div class="pin-dot" id="pd2"></div>
         <div class="pin-dot" id="pd3"></div>
     </div>
+    <label class="pin-remember">
+        <input type="checkbox" id="pinRememberMe">
+        <span class="pin-remember-label">Remember me on this device</span>
+    </label>
     <div class="pin-keypad">
         <button class="pin-key" onclick="pinPress('1')">1</button>
         <button class="pin-key" onclick="pinPress('2')">2</button>
@@ -761,14 +778,34 @@ let _sessionPin  = '';
 let pinBuffer    = '';
 let pinVerified  = false;
 
-function checkPinAlreadySaved() {
+async function checkPinAlreadySaved() {
     const saved = localStorage.getItem(PIN_KEY);
-    if (saved === 'verified') {
-        // Previously verified — but we still need the PIN in memory for this session
-        // Show a lighter "welcome back" PIN prompt
-        document.getElementById('pinSub').textContent = 'Welcome back! Enter your PIN to continue.';
-        // PIN screen stays visible — player enters PIN, verifyPin() captures _sessionPin
-        // No change needed — the normal PIN flow handles it
+    // saved is the actual PIN if "Remember me" was ticked, otherwise null
+    if (!saved) return; // no saved PIN — show PIN screen normally
+
+    // Silently verify the saved PIN with GAS
+    try {
+        const verifyUrl = GAS_URL
+            + '?action=verifyPin'
+            + '&token=' + encodeURIComponent(SECRET_TOKEN)
+            + '&playerId=' + encodeURIComponent(playerId)
+            + '&pin=' + encodeURIComponent(saved);
+
+        const res    = await fetch(verifyUrl);
+        const result = await res.json();
+
+        if (result.valid) {
+            _sessionPin = saved;
+            pinVerified = true;
+            document.getElementById('pinOverlay').classList.add('hidden');
+            onAuthenticated();
+        } else {
+            // PIN no longer valid (changed) — clear and show PIN screen
+            localStorage.removeItem(PIN_KEY);
+        }
+    } catch(err) {
+        // Network error — fall back to PIN screen silently
+        localStorage.removeItem(PIN_KEY);
     }
 }
 
@@ -828,13 +865,16 @@ async function verifyPin() {
         const result   = await checkRes.json();
 
         if (result.valid) {
-            localStorage.setItem(PIN_KEY, 'verified');
+            const rememberMe = document.getElementById('pinRememberMe').checked;
+            if (rememberMe) {
+                localStorage.setItem(PIN_KEY, pinBuffer); // save actual PIN for auto-login
+            } else {
+                localStorage.removeItem(PIN_KEY); // clear any previously saved PIN
+            }
             _sessionPin  = pinBuffer; // keep in memory for submissions this session
             pinVerified  = true;
             document.getElementById('pinOverlay').classList.add('hidden');
             document.getElementById('pinError').classList.remove('show');
-            // Reset sub text for next visit
-            document.getElementById('pinSub').textContent = "Your 4-digit PIN was sent with your link.\nYou'll only need to enter it once.";
             onAuthenticated();
         } else {
             showPinError(result.reason || 'Incorrect PIN');
@@ -843,7 +883,9 @@ async function verifyPin() {
     } catch(err) {
         // GAS not configured yet — for testing only, allow any 4-digit entry
         if (GAS_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
-            localStorage.setItem(PIN_KEY, 'verified');
+            const rememberMe = document.getElementById('pinRememberMe').checked;
+            if (rememberMe) localStorage.setItem(PIN_KEY, pinBuffer);
+            else localStorage.removeItem(PIN_KEY);
             _sessionPin = pinBuffer;
             pinVerified = true;
             document.getElementById('pinOverlay').classList.add('hidden');

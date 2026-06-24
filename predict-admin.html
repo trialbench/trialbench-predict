@@ -498,17 +498,20 @@ async function init() {
     }
 }
 
-function getTodayStr() {
+function getTodaySerial() {
     const now = new Date();
-    const dd  = String(now.getDate()).padStart(2, '0');
-    const mon = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][now.getMonth()];
-    return `${dd}-${mon}`;
+    const utcMidnight = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    const excelEpoch  = Date.UTC(1899, 11, 30);
+    return Math.round((utcMidnight - excelEpoch) / 86400000);
+}
+
+function dateMatchesToday(dateVal) {
+    return Math.floor(parseFloat(dateVal)) === getTodaySerial();
 }
 
 function renderStats() {
-    const today = getTodayStr();
     const predictedToday = new Set(
-        _predictions.filter(p => p.date === today).map(p => p.playerId)
+        _predictions.filter(p => dateMatchesToday(p.date)).map(p => p.playerId)
     );
     document.getElementById('statTotal').textContent = PLAYERS.length || '—';
     document.getElementById('statPredicted').textContent = predictedToday.size;
@@ -529,9 +532,8 @@ function renderPlayerLinks() {
         return;
     }
 
-    const today = getTodayStr();
     const predictedToday = new Set(
-        _predictions.filter(p => p.date === today).map(p => p.playerId)
+        _predictions.filter(p => dateMatchesToday(p.date)).map(p => p.playerId)
     );
 
     container.innerHTML = PLAYERS.map(p => {

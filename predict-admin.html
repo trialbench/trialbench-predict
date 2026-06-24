@@ -479,12 +479,13 @@ async function init() {
         _predictions = rawPredictions
             .filter(r => r[0] && r[2] && String(r[0]).trim().toLowerCase() !== 'playerid')
             .map(r => ({
-                playerId:   String(r[0]).trim().toLowerCase(),
-                playerName: r[1],
-                matchId:    String(r[2]).trim(),
-                date:       r[3],
-                s1: parseInt(r[4]),
-                s2: parseInt(r[5])
+                playerId:    String(r[0]).trim().toLowerCase(),
+                playerName:  r[1],
+                matchId:     String(r[2]).trim(),
+                date:        r[3],
+                s1:          parseInt(r[4]),
+                s2:          parseInt(r[5]),
+                submittedAt: r[6] || ''
             }));
 
         renderStats();
@@ -498,20 +499,25 @@ async function init() {
     }
 }
 
-function getTodaySerial() {
+function getTodayISTStr() {
+    // Returns today's date in IST as "YYYY-MM-DD"
     const now = new Date();
-    const utcMidnight = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-    const excelEpoch  = Date.UTC(1899, 11, 30);
-    return Math.round((utcMidnight - excelEpoch) / 86400000);
+    const ist = new Date(now.getTime() + 5.5 * 60 * 60 * 1000);
+    return ist.toISOString().slice(0, 10);
 }
 
-function dateMatchesToday(dateVal) {
-    return Math.floor(parseFloat(dateVal)) === getTodaySerial();
+function submittedToday(submittedAt) {
+    // Check if a UTC ISO timestamp falls on today in IST
+    if (!submittedAt) return false;
+    try {
+        const ist = new Date(new Date(submittedAt).getTime() + 5.5 * 60 * 60 * 1000);
+        return ist.toISOString().slice(0, 10) === getTodayISTStr();
+    } catch(e) { return false; }
 }
 
 function renderStats() {
     const predictedToday = new Set(
-        _predictions.filter(p => dateMatchesToday(p.date)).map(p => p.playerId)
+        _predictions.filter(p => submittedToday(p.submittedAt)).map(p => p.playerId)
     );
     document.getElementById('statTotal').textContent = PLAYERS.length || '—';
     document.getElementById('statPredicted').textContent = predictedToday.size;
@@ -533,7 +539,7 @@ function renderPlayerLinks() {
     }
 
     const predictedToday = new Set(
-        _predictions.filter(p => dateMatchesToday(p.date)).map(p => p.playerId)
+        _predictions.filter(p => submittedToday(p.submittedAt)).map(p => p.playerId)
     );
 
     container.innerHTML = PLAYERS.map(p => {

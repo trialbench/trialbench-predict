@@ -150,8 +150,7 @@ body {
 /* ── STREAK BAR ── */
 .streak-bar {
     border-bottom: 1px solid var(--border);
-    padding: 12px 20px;
-    display: flex; align-items: center; gap: 14px;
+    padding: 8px 16px;
     background: linear-gradient(135deg, rgba(245,158,11,0.07), rgba(245,158,11,0.02));
     transition: background 0.3s;
 }
@@ -162,20 +161,22 @@ body {
 @keyframes streakBarPulse {
     0%,100% { opacity:1; } 50% { opacity:0.7; }
 }
-.streak-fire { font-size: 24px; flex-shrink: 0; line-height: 1; }
-.streak-info { flex: 1; min-width: 0; }
-.streak-count { font-size: 15px; font-weight: 900; color: var(--warning); letter-spacing: -0.3px; line-height: 1; }
+.streak-row1 { display: flex; align-items: center; gap: 10px; }
+.streak-row2 { display: flex; align-items: center; gap: 8px; margin-top: 6px; padding-left: 30px; }
+.streak-row3 { margin-top: 5px; padding-left: 30px; font-size: 11px; font-weight: 700; color: var(--warning); display: none; }
+.streak-row3.visible { display: block; }
+.streak-fire { font-size: 20px; flex-shrink: 0; line-height: 1; }
+.streak-count { font-size: 14px; font-weight: 900; color: var(--warning); letter-spacing: -0.3px; line-height: 1; flex-shrink: 0; }
 .streak-bar.at-risk .streak-count { color: var(--danger); }
-.streak-label { font-size: 11px; color: var(--text-muted); font-weight: 600; margin-top: 3px; }
-.streak-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0; }
+.streak-label { font-size: 11px; color: var(--text-muted); font-weight: 600; }
 .streak-milestone {
     font-size: 10px; font-weight: 800; color: var(--text-muted);
-    letter-spacing: 0.3px; white-space: nowrap;
+    letter-spacing: 0.3px; white-space: nowrap; flex-shrink: 0;
 }
 .streak-milestone .next-ms { color: #fff; }
-.streak-pips { display: flex; gap: 4px; }
+.streak-pips { display: flex; gap: 3px; flex: 1; }
 .streak-pip {
-    width: 18px; height: 4px; border-radius: 3px;
+    width: 14px; height: 4px; border-radius: 3px;
     background: rgba(255,255,255,0.07);
     transition: background 0.3s;
 }
@@ -466,17 +467,6 @@ body {
 .practice-banner-sub { font-size: 11px; font-weight: 500; color: var(--text-muted); margin-top: 1px; line-height: 1.4; }
 
 /* ── STREAK BONUS BANNER ── */
-.streak-bonus {
-    margin: 12px 20px 0;
-    background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.04));
-    border: 1px solid rgba(245,158,11,0.2);
-    border-radius: 12px;
-    padding: 12px 16px;
-    display: flex; align-items: center; gap: 10px;
-    font-size: 13px; font-weight: 700; color: #F59E0B;
-}
-.streak-bonus.hidden { display: none; }
-
 /* ── MY SCORE SUMMARY ── */
 .myscore-summary {
     background: linear-gradient(135deg, rgba(34,197,94,0.08), rgba(34,197,94,0.02));
@@ -518,16 +508,7 @@ body {
 .myscore-streak-pts-val { font-size: 22px; font-weight: 900; color: var(--warning); }
 .myscore-streak-pts-lbl { font-size: 10px; font-weight: 700; color: var(--text-muted); margin-top: 2px; }
 
-.streak-bonus {
-    margin: 12px 20px 0;
-    background: linear-gradient(135deg, rgba(245,158,11,0.1), rgba(245,158,11,0.04));
-    border: 1px solid rgba(245,158,11,0.2);
-    border-radius: 12px;
-    padding: 12px 16px;
-    display: flex; align-items: center; gap: 10px;
-    font-size: 13px; font-weight: 700; color: #F59E0B;
-}
-.streak-bonus.hidden { display: none; }
+
 </style>
 </head>
 <body>
@@ -589,20 +570,18 @@ body {
 
 <!-- STREAK BAR -->
 <div class="streak-bar" id="streakBar">
-    <div class="streak-fire" id="streakFire">⚡</div>
-    <div class="streak-info">
+    <div class="streak-row1">
+        <div class="streak-fire" id="streakFire">⚡</div>
         <div class="streak-count" id="streakCount">No streak yet</div>
         <div class="streak-label" id="streakLabel">Submit a prediction to start your streak</div>
     </div>
-    <div class="streak-right">
-        <div class="streak-milestone" id="streakMilestone"></div>
+    <div class="streak-row2">
         <div class="streak-pips" id="streakPips"></div>
+        <div class="streak-milestone" id="streakMilestone"></div>
     </div>
-</div>
-
-<!-- STREAK BONUS BANNER -->
-<div class="streak-bonus hidden" id="streakBonusBanner">
-    🔥 Streak milestone! You earned <strong style="margin:0 4px">a bonus point</strong> — keep it going!
+    <div class="streak-row3" id="streakBonusBanner">
+        🎉 Streak milestone! You earned a bonus point — keep it going!
+    </div>
 </div>
 
 <!-- PRACTICE / LIVE MODE BANNER -->
@@ -1000,7 +979,7 @@ function recordPredictionToday() {
     const { count } = getDisplayStreak();
     const STREAK_MILESTONES = [3, 6, 9, 12, 15];
     if (STREAK_MILESTONES.includes(count)) {
-        document.getElementById('streakBonusBanner').classList.remove('hidden');
+        document.getElementById('streakBonusBanner').classList.add('visible');
     }
 }
 

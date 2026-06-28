@@ -1887,13 +1887,14 @@ function renderMyScore() {
     const { count, maxStreak } = getDisplayStreak();
     const MILESTONES = [3, 6, 9, 12, 15];
 
-    // Pull pts from sheet data (same source as standings)
-    const playerPts = calcPlayerPts();
-    const myPredPts = playerPts[playerId] || 0;
+    // Only count prediction pts from R32 onwards (June 29)
+    const R32_START = new Date('2026-06-29T00:00:00+05:30');
 
-    // Break down exact vs result pts for this player
+    // Break down exact vs result pts for this player — R32+ only
     let exactPts = 0, resultPts = 0;
     _matchesData.forEach(function(match) {
+        var matchDate = parseSheetDate(match.date);
+        if (!matchDate || matchDate < R32_START) return;
         var t1s = match.team1.replace(/[^a-zA-Z0-9]/g, '_');
         var t2s = match.team2.replace(/[^a-zA-Z0-9]/g, '_');
         var myPred = _predictionsData.find(function(p) {
@@ -1908,14 +1909,38 @@ function renderMyScore() {
     });
 
     // Streak bonus pts — based on maxStreak (highest ever), not current count.
-    // Milestones already crossed are permanently earned even if streak resets.
     const cappedMax = Math.min(maxStreak, 15);
     const streakBonusPts = MILESTONES.filter(m => m <= cappedMax)
         .reduce((acc, m, i) => acc + (i + 1), 0);
     const total = exactPts + resultPts + streakBonusPts;
 
-    // Rank — sort all players by pts descending
-    const rows = PLAYERS.map(p => ({ id: p.id, pts: playerPts[p.id] || 0 }))
+    // Rank — use same R32 filtered pts for all players (mirrors standings)
+    const allPlayerPts = {};
+    PLAYERS.forEach(p => { allPlayerPts[p.id] = 0; });
+    _matchesData.forEach(function(match) {
+        var matchDate = parseSheetDate(match.date);
+        if (!matchDate || matchDate < R32_START) return;
+        const t1s = match.team1.replace(/[^a-zA-Z0-9]/g, '_');
+        const t2s = match.team2.replace(/[^a-zA-Z0-9]/g, '_');
+        _predictionsData.filter(function(pred) {
+            const parts = pred.matchId.split('_');
+            return parts.slice(1).join('_') === t1s + '_' + t2s;
+        }).forEach(function(pred) {
+            if (isNaN(pred.s1) || isNaN(pred.s2)) return;
+            const exact  = pred.s1 === match.s1 && pred.s2 === match.s2;
+            const result = Math.sign(pred.s1 - pred.s2) === Math.sign(match.s1 - match.s2);
+            if (exact)        allPlayerPts[pred.playerId] = (allPlayerPts[pred.playerId] || 0) + 3;
+            else if (result)  allPlayerPts[pred.playerId] = (allPlayerPts[pred.playerId] || 0) + 1;
+        });
+    });
+    // Add streak bonus for each player
+    PLAYERS.forEach(p => {
+        const { maxStreak: pMax } = calcStreakFromPredictions(p.id);
+        const pCapped = Math.min(pMax, 15);
+        const pBonus  = MILESTONES.filter(m => m <= pCapped).reduce((acc, m, i) => acc + (i + 1), 0);
+        allPlayerPts[p.id] = (allPlayerPts[p.id] || 0) + pBonus;
+    });
+    const rows = PLAYERS.map(p => ({ id: p.id, pts: allPlayerPts[p.id] || 0 }))
         .sort((a, b) => b.pts - a.pts);
     const myRank = rows.findIndex(r => r.id === playerId) + 1;
     const rankEmojis = { 1: '🥇', 2: '🥈', 3: '🥉' };

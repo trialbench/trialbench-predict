@@ -1174,6 +1174,12 @@ let _matchesData  = [];
 let _predictionsData = [];
 
 // ── Announcement banners ──
+        // ── Round label helper ──
+        function roundLabel(grp) {
+            const map = { 'R32': 'Round of 32', 'R16': 'Round of 16', 'QF': 'Quarter Final', 'SF': 'Semi Final', 'F': 'Final' };
+            return map[grp] ? map[grp] : 'Group ' + grp;
+        }
+
 function renderAnnouncements(rows) {
     const container = document.getElementById('annBanners');
     if (!container) return;
@@ -1418,7 +1424,7 @@ function renderPredictPage() {
                 }, 0);
             }
 
-            const grpLabel = m.isToday ? 'Group ' + m.grp : 'Group ' + m.grp + ' · Tomorrow';
+            const grpLabel = m.isToday ? roundLabel(m.grp) : roundLabel(m.grp) + ' · Tomorrow';
             // Card colour class for history cards
             let cardResultClass = '';
             if (hasScore) {
@@ -1485,7 +1491,7 @@ function renderPredictPage() {
         return `
         <div class="match-card result-${r.resultClass}" ${dimmed ? 'style="opacity:0.45"' : ''}>
             <div class="match-meta">
-                <span class="match-grp">Group ${m.grp} · ${m.date}</span>
+                <span class="match-grp">${roundLabel(m.grp)} · ${m.date}</span>
                 <span class="match-time" style="color:var(--text-muted)">FT</span>
             </div>
             <div class="match-body">

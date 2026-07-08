@@ -427,6 +427,36 @@ body {
     display: flex; align-items: center; gap: 6px;
 }
 
+/* ── GAP-DAY GAME CARD (no match scheduled today) ── */
+.gap-card {
+    margin: 0 20px 12px;
+    background: var(--glass);
+    border: 1px solid rgba(245,158,11,0.25);
+    border-radius: 16px;
+    overflow: hidden;
+    transition: opacity 0.2s;
+}
+.gap-card.locked { opacity: 0.55; }
+.gap-card .match-meta { border-bottom: 1px solid var(--border); }
+.gap-grp { font-size: 10px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--warning); }
+.gap-badge {
+    display: inline-block; background: rgba(245,158,11,0.15); color: var(--warning);
+    font-size: 9px; font-weight: 800; letter-spacing: 1px; text-transform: uppercase;
+    padding: 3px 8px; border-radius: 6px; margin-bottom: 10px;
+}
+.gap-question { font-size: 15px; font-weight: 800; margin-bottom: 14px; line-height: 1.35; padding: 0 16px; }
+.gap-body { padding: 16px 0; }
+.gap-options { display: flex; gap: 10px; padding: 0 16px; }
+.gap-option {
+    flex: 1; padding: 14px 10px; text-align: center;
+    background: rgba(255,255,255,0.05); border: 1.5px solid var(--border);
+    border-radius: 12px; font-size: 13px; font-weight: 800; color: #fff;
+    cursor: pointer; transition: all 0.15s;
+}
+.gap-option:disabled, .gap-option.disabled { pointer-events: none; }
+.gap-option.picked { border-color: var(--accent); background: rgba(34,197,94,0.12); color: var(--accent); }
+.gap-option.faded { opacity: 0.4; }
+
 /* ── PRACTICE MODE BANNER ── */
 /* ── Announcement banners ── */
 .ann-banner {
@@ -606,6 +636,8 @@ body {
         <div class="scoring-rule">Exact score <span>+3 pts</span></div>
         <div class="scoring-rule">3-day streak <span>+1 pt (up to +5)</span></div>
     </div>
+
+    <div id="gapGameCard"></div>
 
     <div class="section-hdr" id="openHdr" style="display:none">
         <h2 id="openHdrTitle">Today's Matches</h2>
@@ -1144,6 +1176,14 @@ function getKickoffMs(dateStr, timeStr) {
     return new Date(d.getFullYear(), d.getMonth(), d.getDate(), t.hh, t.mm, 0, 0).getTime();
 }
 
+// Returns UTC ms for the end of the given sheet date (midnight IST, i.e. start of next day)
+function getMidnightMs(dateStr) {
+    var d = parseSheetDate(dateStr);
+    if (!d) return null;
+    var next = new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0, 0);
+    return next.getTime();
+}
+
 // Active countdown timers (cleared on re-render)
 let _countdownTimers = [];
 
@@ -1151,6 +1191,7 @@ let _countdownTimers = [];
 let _scheduleData = [];
 let _matchesData  = [];
 let _predictionsData = [];
+let _gapGamesData = [];
 
 // ── Announcement banners ──
         // ── Round label helper ──
@@ -1200,11 +1241,12 @@ function dismissAnn(key, msg) {
 
 async function loadData() {
     try {
-        const [rawSchedule, rawMatches, rawPredictions, rawAnnouncements] = await Promise.all([
+        const [rawSchedule, rawMatches, rawPredictions, rawAnnouncements, rawGapGames] = await Promise.all([
             fetchSheet('Schedule'),
             fetchSheet('Matches'),
             fetchSheet('Predictions').catch(() => []), // ok if tab doesn't exist yet
             fetchSheet('Announcements').catch(() => []),
+            fetchSheet('GapDayGames').catch(() => []), // ok if tab doesn't exist yet
         ]);
 
         // Schedule: A=#, B=Date, C=Group, D=Team1, E=Team2, F=KickoffIST
@@ -1222,6 +1264,11 @@ async function loadData() {
             .filter(r => r[0] && r[2] && r[0].trim().toLowerCase() !== 'playerid') // skip header row
             .map(r => ({ playerId: r[0].trim().toLowerCase(), playerName: r[1], matchId: r[2].trim(), date: r[3], s1: parseInt(r[4]), s2: parseInt(r[5]), submittedAt: r[6] }));
 
+        // GapDayGames: A=Date, B=Question, C=OptionA, D=OptionB
+        _gapGamesData = rawGapGames
+            .filter(r => r[0] && r[1] && r[0].trim().toLowerCase() !== 'date')
+            .map(r => ({ date: r[0].trim(), question: r[1], optionA: r[2], optionB: r[3] }));
+
         renderAnnouncements(rawAnnouncements);
 
         renderPredictPage();
@@ -1232,6 +1279,103 @@ async function loadData() {
         document.getElementById('openMatches').innerHTML =
             `<div class="loading-state"><div class="icon">⚠️</div>${e.message}</div>`;
         console.error(e);
+    }
+}
+
+// ── Render the gap-day game card (shown only when today has no real match) ──
+function renderGapGameCard(isGapDay, todayMid, windowOpen) {
+    const container = document.getElementById('gapGameCard');
+    if (!container) return;
+
+    if (!isGapDay) { container.innerHTML = ''; return; }
+
+    const game = _gapGamesData.find(g => {
+        const d = parseSheetDate(g.date);
+        return d && toMidnight(d).getTime() === todayMid.getTime();
+    });
+    if (!game) { container.innerHTML = ''; return; }
+
+    const gapMatchId = 'GAP_' + game.date;
+    const already = _predictionsData.find(p => p.playerId === playerId && p.matchId === gapMatchId)
+        || getLocalPredictions()[gapMatchId];
+    const isAnswered = !!already;
+    const before1pm = !windowOpen && !isAnswered;
+
+    let optionsHTML;
+    if (isAnswered) {
+        const pickedA = already.s1 === 1;
+        optionsHTML = `
+            <div class="gap-option${pickedA ? ' picked' : ' faded'}">${game.optionA}${pickedA ? ' ✓' : ''}</div>
+            <div class="gap-option${!pickedA ? ' picked' : ' faded'}">${game.optionB}${!pickedA ? ' ✓' : ''}</div>`;
+    } else if (before1pm) {
+        optionsHTML = `
+            <div class="gap-option disabled">${game.optionA}</div>
+            <div class="gap-option disabled">${game.optionB}</div>`;
+    } else {
+        optionsHTML = `
+            <div class="gap-option" onclick="submitGapGame(1, '${game.date}')">${game.optionA}</div>
+            <div class="gap-option" onclick="submitGapGame(2, '${game.date}')">${game.optionB}</div>`;
+    }
+
+    let footerHTML;
+    if (isAnswered) {
+        footerHTML = '<div class="match-footer"><div class="predicted-row"><span class="predicted-label">&#9989; Streak secured today</span></div></div>';
+    } else if (before1pm) {
+        footerHTML = '<div class="locked-1pm-notice">🔒 Opens at 1:00 PM</div>';
+    } else {
+        footerHTML = '<div class="match-footer"><span style="font-size:12px;color:var(--text-muted);font-weight:600">Pick one to keep today\'s streak — no points, just for fun</span></div>';
+    }
+
+    const timerId = 'gap-timer';
+    let timerHTML;
+    if (isAnswered) {
+        timerHTML = '<span class="match-time">Done ✓</span>';
+    } else if (before1pm) {
+        timerHTML = '<span class="match-time" style="color:var(--text-muted)">Opens 1:00 PM</span>';
+    } else {
+        timerHTML = '<span class="match-timer" id="' + timerId + '">⏱ --:--</span>';
+    }
+
+    container.innerHTML = `
+        <div class="gap-card${before1pm ? ' locked' : ''}">
+            <div class="match-meta" style="padding:12px 16px 10px;display:flex;align-items:center;">
+                <span class="gap-grp">🎮 Gap Day Game</span>
+                <span style="margin-left:auto">${timerHTML}</span>
+            </div>
+            <div class="gap-body">
+                <div style="padding:0 16px"><span class="gap-badge">No match today</span></div>
+                <div class="gap-question">${game.question}</div>
+                <div class="gap-options">${optionsHTML}</div>
+            </div>
+            ${footerHTML}
+        </div>`;
+
+    if (!isAnswered && !before1pm) {
+        setTimeout(() => {
+            const midnightMs = getMidnightMs(game.date);
+            if (!midnightMs) return;
+            let tid;
+            function tick() {
+                const el = document.getElementById(timerId);
+                if (!el) { clearInterval(tid); return; }
+                const diff = Math.max(0, Math.floor((midnightMs - Date.now()) / 1000));
+                if (diff === 0) {
+                    el.textContent = '⏱ Closed';
+                    setTimeout(renderPredictPage, 2000);
+                    return;
+                }
+                const h = Math.floor(diff / 3600);
+                const min = Math.floor((diff % 3600) / 60);
+                const sec = diff % 60;
+                el.textContent = h > 0
+                    ? ('⏱ ' + h + 'h ' + min + 'm')
+                    : ('⏱ ' + String(min).padStart(2,'0') + 'm ' + String(sec).padStart(2,'0') + 's');
+                el.className = 'match-timer' + (h === 0 && min < 15 ? ' urgent' : '');
+            }
+            tick();
+            tid = setInterval(tick, 1000);
+            _countdownTimers.push(tid);
+        }, 0);
     }
 }
 
@@ -1263,6 +1407,9 @@ function renderPredictPage() {
         uid: (m.id + '_' + m.team1 + '_' + m.team2).replace(/[^a-zA-Z0-9]/g, '_'),
         isToday: true
     }));
+
+    // Gap-day game — only relevant when today has zero real matches
+    renderGapGameCard(todayMatches.length === 0, todayMid, windowOpen);
 
     // Tomorrow's matches — always show so players can predict ahead of time
     let tomorrowMatches = _scheduleData.filter(m => {
@@ -1834,6 +1981,61 @@ async function submitPrediction(uid, matchDate) {
 
     } catch(e) {
         if (btn) { btn.disabled = false; btn.textContent = 'Lock in prediction'; }
+        showToast('Connection error — check internet and try again', true);
+        console.error(e);
+    }
+}
+
+// ── Submit a gap-day game pick (choice: 1 = optionA, 2 = optionB) ──
+async function submitGapGame(choice, gameDate) {
+    const gapMatchId = 'GAP_' + gameDate;
+
+    const optionEls = document.querySelectorAll('#gapGameCard .gap-option');
+    optionEls.forEach(el => el.style.pointerEvents = 'none');
+
+    try {
+        if (GAS_URL === 'YOUR_APPS_SCRIPT_URL_HERE') {
+            saveLocalPrediction(gapMatchId, { s1: choice, s2: 0 });
+            recordPredictionToday();
+            renderPredictPage();
+            showToast('🎮 Streak secured! (dev mode)');
+            return;
+        }
+
+        const _payload = JSON.stringify({
+            action:     'submitGapGame',
+            token:      SECRET_TOKEN,
+            playerId,
+            pin:        _sessionPin,
+            playerName: playerData.name,
+            matchId:    gapMatchId,
+            date:       gameDate,
+            s1:         choice,
+            s2:         0,
+            submittedAt: new Date().toISOString(),
+        });
+        const _fd = new FormData();
+        _fd.append('data', _payload);
+        const res = await fetch(GAS_URL, { method: 'POST', body: _fd });
+
+        const result = await res.json();
+
+        if (result.status === 'ok') {
+            saveLocalPrediction(gapMatchId, { s1: choice, s2: 0 });
+            recordPredictionToday();
+            renderPredictPage();
+            showToast('🎮 Streak secured for today!');
+        } else if (result.message === 'Already submitted for this match') {
+            saveLocalPrediction(gapMatchId, { s1: choice, s2: 0 });
+            renderPredictPage();
+            showToast('Already played today\'s game', true);
+        } else {
+            optionEls.forEach(el => el.style.pointerEvents = '');
+            showToast(result.message || 'Could not save — try again', true);
+        }
+
+    } catch(e) {
+        optionEls.forEach(el => el.style.pointerEvents = '');
         showToast('Connection error — check internet and try again', true);
         console.error(e);
     }

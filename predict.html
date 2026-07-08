@@ -1433,7 +1433,8 @@ function renderPredictPage() {
                 }, 0);
             }
 
-            const grpLabel = m.isToday ? roundLabel(m.grp) : roundLabel(m.grp) + ' · Tomorrow';
+            const upcomingShortLabel = upcomingLabel === 'Tomorrow' ? 'Tomorrow' : upcomingLabel.replace('Next Match — ', '');
+            const grpLabel = m.isToday ? roundLabel(m.grp) : roundLabel(m.grp) + ' · ' + upcomingShortLabel;
             // Card colour class for history cards
             let cardResultClass = '';
             if (hasScore) {

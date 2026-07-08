@@ -1265,7 +1265,7 @@ function renderPredictPage() {
     }));
 
     // Tomorrow's matches — always show so players can predict ahead of time
-    const tomorrowMatches = _scheduleData.filter(m => {
+    let tomorrowMatches = _scheduleData.filter(m => {
         const d = parseSheetDate(m.date);
         return d && toMidnight(d).getTime() === tomorrowMid.getTime();
     }).map(m => ({
@@ -1273,6 +1273,30 @@ function renderPredictPage() {
         uid: (m.id + '_' + m.team1 + '_' + m.team2).replace(/[^a-zA-Z0-9]/g, '_'),
         isToday: false
     }));
+
+    // Rest-day fallback — knockout rounds can have gaps (e.g. no match the
+    // day between R16 and QF). If neither today nor tomorrow has a match,
+    // surface the next scheduled match further out so players can still
+    // predict ahead and keep their streak alive, instead of showing nothing.
+    let upcomingLabel = 'Tomorrow';
+    if (todayMatches.length === 0 && tomorrowMatches.length === 0) {
+        const futureDates = _scheduleData
+            .map(m => parseSheetDate(m.date))
+            .filter(d => d && toMidnight(d).getTime() > tomorrowMid.getTime())
+            .sort((a, b) => a - b);
+        if (futureDates.length > 0) {
+            const nextMid = toMidnight(futureDates[0]).getTime();
+            tomorrowMatches = _scheduleData.filter(m => {
+                const d = parseSheetDate(m.date);
+                return d && toMidnight(d).getTime() === nextMid;
+            }).map(m => ({
+                ...m,
+                uid: (m.id + '_' + m.team1 + '_' + m.team2).replace(/[^a-zA-Z0-9]/g, '_'),
+                isToday: false
+            }));
+            upcomingLabel = 'Next Match — ' + toMidnight(futureDates[0]).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+        }
+    }
 
     const allMatches = [...todayMatches, ...tomorrowMatches];
 
@@ -1309,7 +1333,13 @@ function renderPredictPage() {
         openHdr.style.display = 'none';
     } else {
         openHdr.style.display = 'flex';
-        openHdrTitle.textContent = tomorrowMatches.length > 0 ? "Today's & Tomorrow's Matches" : "Today's Matches";
+        if (todayMatches.length > 0) {
+            openHdrTitle.textContent = tomorrowMatches.length > 0 ? "Today's & Tomorrow's Matches" : "Today's Matches";
+        } else if (tomorrowMatches.length > 0) {
+            openHdrTitle.textContent = upcomingLabel === 'Tomorrow' ? "Tomorrow's Matches" : upcomingLabel;
+        } else {
+            openHdrTitle.textContent = "Today's Matches";
+        }
 
         function buildCard(m) {
             const pred = myPredMap[m.uid];
@@ -1421,7 +1451,7 @@ function renderPredictPage() {
         // Render today's cards, then a divider if tomorrow exists, then tomorrow's cards
         let html = todayMatches.map(buildCard).join('');
         if (tomorrowMatches.length > 0) {
-            html += '<div style="padding:16px 20px 8px;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted)">Tomorrow</div>';
+            html += '<div style="padding:16px 20px 8px;font-size:11px;font-weight:800;letter-spacing:1.5px;text-transform:uppercase;color:var(--text-muted)">' + (upcomingLabel === 'Tomorrow' ? 'Tomorrow' : upcomingLabel) + '</div>';
             html += tomorrowMatches.map(buildCard).join('');
         }
         openContainer.innerHTML = html;

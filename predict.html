@@ -484,6 +484,20 @@ body {
 }
 .ann-dismiss:hover { color: #e8eaf6; }
 
+/* ── Final prediction feed ── */
+.pred-feed-wrap { margin: 20px 0 0; }
+.pred-feed-hdr { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+.pred-feed-title { font-size:13px; font-weight:500; color:var(--text-primary); }
+.pred-feed-badge { font-size:11px; font-weight:500; padding:3px 10px; border-radius:20px; background:var(--bg-accent); color:var(--text-accent); }
+.pred-feed-match { background:var(--card-bg); border:0.5px solid var(--border); border-radius:12px; padding:10px 14px; margin-bottom:10px; text-align:center; }
+.pred-feed-match-label { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:.5px; margin-bottom:4px; }
+.pred-feed-match-teams { font-size:15px; font-weight:500; color:var(--text-primary); }
+.pred-feed-row { display:flex; align-items:center; gap:10px; background:var(--card-bg); border:0.5px solid var(--border); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+.pred-feed-avatar { width:30px; height:30px; border-radius:50%; background:var(--bg-accent); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:500; color:var(--text-accent); flex-shrink:0; }
+.pred-feed-name { font-size:13px; font-weight:500; color:var(--text-primary); flex:1; }
+.pred-feed-score { font-size:14px; font-weight:500; color:var(--text-primary); background:var(--bg); border:0.5px solid var(--border); border-radius:6px; padding:3px 10px; }
+.pred-feed-time { font-size:11px; color:var(--text-muted); min-width:50px; text-align:right; }
+
 .practice-banner {
     margin: 12px 20px 0;
     background: linear-gradient(135deg, rgba(245,158,11,0.08), rgba(245,158,11,0.03));
@@ -647,6 +661,9 @@ body {
     <div id="openMatches">
         <div class="loading-state"><div class="spinner"></div>Loading matches…</div>
     </div>
+
+    <!-- Final prediction feed -->
+    <div id="finalPredFeed"></div>
 
 </div>
 
@@ -1270,6 +1287,7 @@ async function loadData() {
             .map(r => ({ date: r[0].trim(), question: r[1], optionA: r[2], optionB: r[3] }));
 
         renderAnnouncements(rawAnnouncements);
+        renderFinalPredFeed();
 
         renderPredictPage();
         renderStandings();
@@ -1380,6 +1398,68 @@ function renderGapGameCard(isGapDay, todayMid, windowOpen) {
 }
 
 // ── Render predict page ──
+// ── Final prediction feed ──
+function renderFinalPredFeed() {
+    const container = document.getElementById('finalPredFeed');
+    if (!container) return;
+
+    // Find the Final match in schedule (grp === 'F')
+    const finalMatch = _scheduleData.find(m => String(m.grp).trim() === 'F');
+    if (!finalMatch) { container.innerHTML = ''; return; }
+
+    // Get all predictions for the final match
+    const t1s = finalMatch.team1.replace(/[^a-zA-Z0-9]/g, '_');
+    const t2s = finalMatch.team2.replace(/[^a-zA-Z0-9]/g, '_');
+    const finalPreds = _predictionsData.filter(p => {
+        const mid = p.matchId || '';
+        return mid.indexOf(t1s + '_' + t2s) >= 0;
+    });
+
+    if (finalPreds.length === 0) { container.innerHTML = ''; return; }
+
+    // Sort by submittedAt
+    finalPreds.sort(function(a, b) {
+        return new Date(a.submittedAt) - new Date(b.submittedAt);
+    });
+
+    var rows = finalPreds.map(function(p) {
+        var initials = (p.playerName || '?').slice(0, 2).toUpperCase();
+        var firstName = (p.playerName || '').split(' ')[0];
+        // Format submitted time in IST
+        var timeStr = '';
+        if (p.submittedAt) {
+            var d = new Date(p.submittedAt);
+            if (!isNaN(d.getTime())) {
+                var ist = new Date(d.getTime() + 5.5 * 3600000);
+                var h = ist.getUTCHours(), mn = ist.getUTCMinutes();
+                var ampm = h >= 12 ? 'PM' : 'AM';
+                h = h % 12 || 12;
+                timeStr = h + ':' + String(mn).padStart(2, '0') + ' ' + ampm;
+            }
+        }
+        return `<div class="pred-feed-row">
+            <div class="pred-feed-avatar">${initials}</div>
+            <div class="pred-feed-name">${firstName}</div>
+            <div class="pred-feed-score">${isNaN(p.s1) ? '—' : p.s1 + ' – ' + p.s2}</div>
+            <div class="pred-feed-time">${timeStr}</div>
+        </div>`;
+    }).join('');
+
+    container.innerHTML = `
+        <div class="pred-feed-wrap">
+            <div class="pred-feed-match">
+                <div class="pred-feed-match-label">Final · ${finalMatch.date || ''}</div>
+                <div class="pred-feed-match-teams">${finalMatch.team1} vs ${finalMatch.team2}</div>
+                <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Predictions for this match are visible to all players</div>
+            </div>
+            <div class="pred-feed-hdr">
+                <span class="pred-feed-title">Everyone's predictions</span>
+                <span class="pred-feed-badge">${finalPreds.length} predicted</span>
+            </div>
+            ${rows}
+        </div>`;
+}
+
 function renderPredictPage() {
     const todayMid = toMidnight(new Date());
     const tomorrowMid = new Date(todayMid); tomorrowMid.setDate(tomorrowMid.getDate() + 1);

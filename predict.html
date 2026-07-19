@@ -1405,15 +1405,21 @@ function renderFinalPredFeed() {
 
     // Find the Final match in schedule (grp === 'F')
     const finalMatch = _scheduleData.find(m => String(m.grp).trim() === 'F');
+    console.log('[FinalFeed] scheduleData length:', _scheduleData.length);
+    console.log('[FinalFeed] finalMatch:', finalMatch);
+    console.log('[FinalFeed] predictionsData length:', _predictionsData.length);
     if (!finalMatch) { container.innerHTML = ''; return; }
 
     // Get all predictions for the final match
     const t1s = finalMatch.team1.replace(/[^a-zA-Z0-9]/g, '_');
     const t2s = finalMatch.team2.replace(/[^a-zA-Z0-9]/g, '_');
+    console.log('[FinalFeed] looking for teamPair:', t1s + '_' + t2s);
+    console.log('[FinalFeed] sample matchIds:', _predictionsData.slice(0,3).map(p => p.matchId));
     const finalPreds = _predictionsData.filter(p => {
         const mid = p.matchId || '';
         return mid.indexOf(t1s + '_' + t2s) >= 0;
     });
+    console.log('[FinalFeed] finalPreds found:', finalPreds.length);
 
     if (finalPreds.length === 0) { container.innerHTML = ''; return; }
 

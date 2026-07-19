@@ -978,21 +978,49 @@ function onAuthenticated() {
     // Fetch and render data
     loadData();
 
-    // Flip practice banner to live mode on June 29 — runs immediately, no sheet needed
+    // Flip practice banner based on current stage — runs immediately, no sheet needed
     (function() {
+        const now = new Date();
         const R32_START = new Date('2026-06-29T00:00:00+05:30');
-        const isR32Live = new Date() >= R32_START;
-        if (!isR32Live) return;
+        const R16_START = new Date('2026-07-04T00:00:00+05:30');
+        const QF_START  = new Date('2026-07-10T00:00:00+05:30');
+        const SF_START  = new Date('2026-07-15T00:00:00+05:30');
+        const F_START   = new Date('2026-07-19T13:00:00+05:30');
+
+        const banner      = document.getElementById('practiceBanner');
         const bannerIcon  = document.getElementById('practiceBannerIcon');
         const bannerTitle = document.getElementById('practiceBannerTitle');
         const bannerSub   = document.getElementById('practiceBannerSub');
-        const banner      = document.getElementById('practiceBanner');
         if (!bannerTitle) return;
-        bannerIcon.textContent  = '🏁';
-        bannerTitle.textContent = 'Round of 32 is LIVE — predictions now count!';
-        bannerSub.textContent   = 'Your picks from Round of 32 onwards feed into the main league. Streak bonus included!';
-        banner.style.borderColor = '#22c55e';
-        banner.style.background  = 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))';
+
+        if (now >= F_START) {
+            // Final day — hide banner entirely
+            banner.classList.add('hidden');
+        } else if (now >= SF_START) {
+            bannerIcon.textContent  = '🏟️';
+            bannerTitle.textContent = 'Semi-Finals are LIVE — predictions now count!';
+            bannerSub.textContent   = 'Your picks from Round of 32 onwards feed into the main league. Streak bonus included!';
+            banner.style.borderColor = '#22c55e';
+            banner.style.background  = 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))';
+        } else if (now >= QF_START) {
+            bannerIcon.textContent  = '⚔️';
+            bannerTitle.textContent = 'Quarter-Finals are LIVE — predictions now count!';
+            bannerSub.textContent   = 'Your picks from Round of 32 onwards feed into the main league. Streak bonus included!';
+            banner.style.borderColor = '#22c55e';
+            banner.style.background  = 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))';
+        } else if (now >= R16_START) {
+            bannerIcon.textContent  = '🔥';
+            bannerTitle.textContent = 'Round of 16 is LIVE — predictions now count!';
+            bannerSub.textContent   = 'Your picks from Round of 32 onwards feed into the main league. Streak bonus included!';
+            banner.style.borderColor = '#22c55e';
+            banner.style.background  = 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))';
+        } else if (now >= R32_START) {
+            bannerIcon.textContent  = '🏁';
+            bannerTitle.textContent = 'Round of 32 is LIVE — predictions now count!';
+            bannerSub.textContent   = 'Your picks from Round of 32 onwards feed into the main league. Streak bonus included!';
+            banner.style.borderColor = '#22c55e';
+            banner.style.background  = 'linear-gradient(135deg, rgba(34,197,94,0.12), rgba(34,197,94,0.04))';
+        }
     })();
 }
 

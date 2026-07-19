@@ -640,18 +640,21 @@ body {
 <!-- PAGES -->
 <div class="page active" id="page-predict">
 
-    <div class="section-hdr">
+    <div class="section-hdr" id="howItWorksHdr">
         <h2>How it works</h2>
         <div class="line"></div>
         
     </div>
-    <div class="scoring-box">
+    <div class="scoring-box" id="howItWorksBox">
         <div class="scoring-rule">Correct result <span>+1 pt</span></div>
         <div class="scoring-rule">Exact score <span>+3 pts</span></div>
         <div class="scoring-rule">3-day streak <span>+1 pt (up to +5)</span></div>
     </div>
 
     <div id="gapGameCard"></div>
+
+    <!-- Final prediction feed — shown above match card on Final day -->
+    <div id="finalPredFeed"></div>
 
     <div class="section-hdr" id="openHdr" style="display:none">
         <h2 id="openHdrTitle">Today's Matches</h2>
@@ -661,9 +664,6 @@ body {
     <div id="openMatches">
         <div class="loading-state"><div class="spinner"></div>Loading matches…</div>
     </div>
-
-    <!-- Final prediction feed -->
-    <div id="finalPredFeed"></div>
 
 </div>
 
@@ -1415,6 +1415,12 @@ function renderFinalPredFeed() {
     console.log('[FinalFeed] finalMatch:', finalMatch);
     console.log('[FinalFeed] predictionsData length:', _predictionsData.length);
     if (!finalMatch) { container.innerHTML = ''; return; }
+
+    // Hide "How it works" on Final day
+    const howItWorksHdr = document.getElementById('howItWorksHdr');
+    const howItWorksBox = document.getElementById('howItWorksBox');
+    if (howItWorksHdr) howItWorksHdr.style.display = 'none';
+    if (howItWorksBox) howItWorksBox.style.display = 'none';
 
     // Get all predictions for the final match
     const t1s = finalMatch.team1.replace(/[^a-zA-Z0-9]/g, '_');

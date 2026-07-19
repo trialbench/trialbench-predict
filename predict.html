@@ -1268,8 +1268,12 @@ async function loadData() {
 
         // Schedule: A=#, B=Date, C=Group, D=Team1, E=Team2, F=KickoffIST
         _scheduleData = rawSchedule
-            .filter(r => r[0] && /^\d+$/.test(r[0].trim()))
-            .map(r => ({ id: r[0], date: r[1], grp: r[2], team1: r[3], team2: r[4], time: r[5] }));
+            .filter(r => r[0] && /^\d+$/.test(String(r[0]).trim()))
+            .map(r => {
+                // Schedule cols: A=Matchday#, B=Date, C=Group, D=Team1, E=Team2, F=Kickoff
+                // gviz CSV: index 0=A, 1=B, 2=C, 3=D, 4=E, 5=F
+                return { id: String(r[0]).trim(), date: r[1], grp: String(r[2]).trim(), team1: String(r[3]).trim(), team2: String(r[4]).trim(), time: String(r[5]).trim() };
+            });
 
         // Matches (completed): A=#, B=Date, C=Grp, D=Team1, E=Team2, F=Score1, G=Score2
         _matchesData = rawMatches
@@ -1403,9 +1407,11 @@ function renderFinalPredFeed() {
     const container = document.getElementById('finalPredFeed');
     if (!container) return;
 
-    // Find the Final match in schedule (grp === 'F')
-    const finalMatch = _scheduleData.find(m => String(m.grp).trim() === 'F');
+    // Find the Final match — grp='F' AND highest matchday (not Group F group stage matches)
+    const maxMd = Math.max(..._scheduleData.map(m => parseInt(m.id) || 0));
+    const finalMatch = _scheduleData.find(m => String(m.grp).trim() === 'F' && parseInt(m.id) === maxMd);
     console.log('[FinalFeed] scheduleData length:', _scheduleData.length);
+    console.log('[FinalFeed] first 3 schedule rows grp:', _scheduleData.slice(0,3).map(m => m.grp + '|' + m.team1 + '|' + m.team2));
     console.log('[FinalFeed] finalMatch:', finalMatch);
     console.log('[FinalFeed] predictionsData length:', _predictionsData.length);
     if (!finalMatch) { container.innerHTML = ''; return; }
